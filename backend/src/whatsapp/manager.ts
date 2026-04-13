@@ -1,0 +1,187 @@
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  proto,
+  WASocket,
+  BaileysEventMap
+} from '@whiskeysockets/baileys'
+import { Boom } from '@hapi/boom'
+import { createClient } from '@supabase/supabase-js'
+import QRCode from 'qrcode'
+import path from 'path'
+import fs from 'fs'
+import { processarMensagemChatbot } from '../services/chatbot'
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+// Map de instâncias ativas: instanciaId → socket
+const instanciasAtivas = new Map<string, WASocket>()
+// Map de QR Codes gerados: instanciaId → base64
+const qrCodes = new Map<string, string>()
+
+function getSessaoPath(instanciaId: string) {
+  const dir = path.join(process.cwd(), 'sessoes', instanciaId)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+export async function conectarInstancia(instanciaId: string, userId: string) {
+  // Evita reconexão duplicada
+  if (instanciasAtivas.has(instanciaId)) {
+    return { ok: true, message: 'Já conectado' }
+  }
+
+  await atualizarStatus(instanciaId, 'conectando')
+
+  const sessaoPath = getSessaoPath(instanciaId)
+  const { state, saveCreds } = await useMultiFileAuthState(sessaoPath)
+  const { version } = await fetchLatestBaileysVersion()
+
+  const sock = makeWASocket({
+    version,
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, console as any)
+    },
+    printQRInTerminal: false,
+    browser: ['ZapFlow', 'Chrome', '124.0.0'],
+    syncFullHistory: false,
+  })
+
+  instanciasAtivas.set(instanciaId, sock)
+
+  // Salva credenciais sempre que atualizarem
+  sock.ev.on('creds.update', saveCreds)
+
+  // Evento de QR Code
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update
+
+    if (qr) {
+      const qrBase64 = await QRCode.toDataURL(qr)
+      qrCodes.set(instanciaId, qrBase64)
+      console.log(`[${instanciaId}] QR Code gerado`)
+    }
+
+    if (connection === 'close') {
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
+      const deveReconectar = statusCode !== DisconnectReason.loggedOut
+
+      instanciasAtivas.delete(instanciaId)
+      qrCodes.delete(instanciaId)
+
+      if (deveReconectar) {
+        console.log(`[${instanciaId}] Reconectando...`)
+        await atualizarStatus(instanciaId, 'desconectado')
+        setTimeout(() => conectarInstancia(instanciaId, userId), 3000)
+      } else {
+        console.log(`[${instanciaId}] Deslogado — removendo sessão`)
+        await atualizarStatus(instanciaId, 'desconectado')
+        fs.rmSync(sessaoPath, { recursive: true, force: true })
+      }
+    }
+
+    if (connection === 'open') {
+      qrCodes.delete(instanciaId)
+      const numero = sock.user?.id?.split(':')[0] || ''
+      await atualizarStatus(instanciaId, 'conectado', numero)
+      console.log(`[${instanciaId}] Conectado: ${numero}`)
+    }
+  })
+
+  // Recebe mensagens → processa chatbot
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type !== 'notify') return
+
+    for (const msg of messages) {
+      if (msg.key.fromMe) continue
+      if (!msg.message) continue
+
+      const numero = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || ''
+      const texto =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text || ''
+
+      if (!texto || !numero) continue
+
+      // Processa no chatbot
+      await processarMensagemChatbot(instanciaId, numero, texto, sock)
+    }
+  })
+
+  return { ok: true }
+}
+
+export async function desconectarInstancia(instanciaId: string) {
+  const sock = instanciasAtivas.get(instanciaId)
+  if (sock) {
+    await sock.logout()
+    instanciasAtivas.delete(instanciaId)
+  }
+  qrCodes.delete(instanciaId)
+  await atualizarStatus(instanciaId, 'desconectado')
+}
+
+export function getQRCode(instanciaId: string) {
+  return qrCodes.get(instanciaId) || null
+}
+
+export function getSocket(instanciaId: string) {
+  return instanciasAtivas.get(instanciaId) || null
+}
+
+export async function enviarMensagem(
+  instanciaId: string,
+  numero: string,
+  mensagem: string,
+  midiaUrl?: string
+) {
+  const sock = instanciasAtivas.get(instanciaId)
+  if (!sock) throw new Error('Instância não conectada')
+
+  const jid = numero.includes('@') ? numero : `${numero}@s.whatsapp.net`
+
+  if (midiaUrl) {
+    // Envia imagem/documento se tiver URL
+    await sock.sendMessage(jid, {
+      image: { url: midiaUrl },
+      caption: mensagem
+    })
+  } else {
+    await sock.sendMessage(jid, { text: mensagem })
+  }
+}
+
+async function atualizarStatus(
+  instanciaId: string,
+  status: string,
+  numero?: string
+) {
+  const update: any = { status, updated_at: new Date().toISOString() }
+  if (numero) update.numero = numero
+
+  await supabase
+    .from('instancias')
+    .update(update)
+    .eq('id', instanciaId)
+}
+
+// Ao iniciar o servidor, reconecta instâncias que estavam conectadas
+export async function reconectarTodasInstancias() {
+  const { data: instancias } = await supabase
+    .from('instancias')
+    .select('id, user_id')
+    .eq('status', 'conectado')
+
+  if (!instancias?.length) return
+
+  console.log(`Reconectando ${instancias.length} instância(s)...`)
+  for (const inst of instancias) {
+    await conectarInstancia(inst.id, inst.user_id)
+  }
+}
