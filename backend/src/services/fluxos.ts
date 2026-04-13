@@ -41,7 +41,7 @@ function matchTrigger(fluxo: any, mensagem: string): boolean {
   if (tipo === 'palavra_chave') {
     if (!valor.trim()) return true
     const keywords = valor.split(',').map((k: string) => k.trim().toLowerCase())
-    return keywords.some(k => mensagem.toLowerCase().includes(k))
+    return keywords.some((k: string) => mensagem.toLowerCase().includes(k))
   }
   return false
 }
