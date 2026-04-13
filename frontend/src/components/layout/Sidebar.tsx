@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Megaphone, Bot,
-  Settings, LogOut, MessageCircle, Users
+  Settings, LogOut, MessageCircle, Users, Inbox, GitFork
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import type { Profile } from '@/types'
@@ -12,9 +12,11 @@ import type { Profile } from '@/types'
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/instancias', label: 'Números', icon: MessageCircle },
+  { href: '/dashboard/chat', label: 'Chat', icon: Inbox },
   { href: '/dashboard/contatos', label: 'Contatos', icon: Users },
   { href: '/dashboard/campanhas', label: 'Campanhas', icon: Megaphone },
   { href: '/dashboard/chatbot', label: 'Chatbot IA', icon: Bot },
+  { href: '/dashboard/fluxos', label: 'Fluxos', icon: GitFork },
   { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
 ]
 

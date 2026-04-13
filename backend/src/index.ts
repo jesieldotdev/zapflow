@@ -4,7 +4,9 @@ import cors from 'cors'
 import { instanciasRouter } from './routes/instancias'
 import { campanhsRouter } from './routes/campanhas'
 import { chatbotRouter } from './routes/chatbot'
+import { conversasRouter } from './routes/conversas'
 import { authMiddleware } from './middleware/auth'
+import { reconectarTodasInstancias } from './whatsapp/manager'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -25,7 +27,9 @@ app.use('/api', authMiddleware)
 app.use('/api/instancias', instanciasRouter)
 app.use('/api/campanhas', campanhsRouter)
 app.use('/api/chatbot', chatbotRouter)
+app.use('/api/conversas', conversasRouter)
 
 app.listen(PORT, () => {
-  console.log(`🚀 ZapFlow Backend rodando na porta ${PORT}`)
+  console.log(`ZapFlow Backend rodando na porta ${PORT}`)
+  reconectarTodasInstancias()
 })

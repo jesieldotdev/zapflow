@@ -170,3 +170,26 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- ================================================
+-- Fluxos de automação (editor visual)
+-- ================================================
+
+CREATE TABLE fluxos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  instancia_id UUID REFERENCES instancias(id) ON DELETE SET NULL,
+  nome TEXT NOT NULL,
+  descricao TEXT,
+  ativo BOOLEAN DEFAULT FALSE,
+  trigger_tipo TEXT DEFAULT 'palavra_chave'
+    CHECK (trigger_tipo IN ('palavra_chave', 'qualquer_mensagem', 'primeiro_contato')),
+  trigger_valor TEXT,
+  nodes JSONB DEFAULT '[]',
+  edges JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE fluxos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "fluxos_own" ON fluxos FOR ALL USING (auth.uid() = user_id);

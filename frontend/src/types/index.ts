@@ -74,18 +74,88 @@ export interface Chatbot {
   updated_at: string
 }
 
+export interface MensagemConversa {
+  role: 'user' | 'assistant'
+  content: string
+  from_human?: boolean
+  timestamp: string
+}
+
 export interface ChatbotConversa {
   id: string
   instancia_id: string
   numero: string
   nome_contato?: string
-  mensagens: Array<{
-    role: 'user' | 'assistant'
-    content: string
-    timestamp: string
-  }>
+  mensagens: MensagemConversa[]
   status: StatusConversa
   tokens_usados: number
+  created_at: string
+  updated_at: string
+}
+
+// ===== Fluxos =====
+
+export type FluxoNodeType =
+  | 'inicio'
+  | 'texto'
+  | 'imagem'
+  | 'audio'
+  | 'documento'
+  | 'link'
+  | 'condicao'
+  | 'delay'
+  | 'ia'
+  | 'variavel'
+  | 'transferir'
+  | 'fim'
+
+export interface FluxoNodeData extends Record<string, unknown> {
+  label?: string
+  mensagem?: string
+  url?: string
+  caption?: string
+  filename?: string
+  delay_valor?: number
+  delay_unidade?: 'segundos' | 'minutos'
+  condicao_campo?: 'mensagem' | 'variavel'
+  condicao_variavel?: string
+  condicao_operador?: 'contem' | 'igual' | 'nao_contem' | 'comeca_com'
+  condicao_valor?: string
+  ia_prompt?: string
+  ia_modelo?: string
+  variavel_nome?: string
+  variavel_valor?: string
+  trigger_tipo?: 'palavra_chave' | 'qualquer_mensagem' | 'primeiro_contato'
+  trigger_valor?: string
+}
+
+export interface FluxoNode {
+  id: string
+  type: FluxoNodeType
+  position: { x: number; y: number }
+  data: FluxoNodeData
+}
+
+export interface FluxoEdge {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string
+  label?: string
+  animated?: boolean
+}
+
+export interface Fluxo {
+  id: string
+  user_id: string
+  instancia_id?: string
+  nome: string
+  descricao?: string
+  ativo: boolean
+  trigger_tipo: 'palavra_chave' | 'qualquer_mensagem' | 'primeiro_contato'
+  trigger_valor?: string
+  nodes: FluxoNode[]
+  edges: FluxoEdge[]
   created_at: string
   updated_at: string
 }
