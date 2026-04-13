@@ -23,7 +23,7 @@ import {
   Plus, ChevronDown, ChevronUp,
   FlaskConical, Send, RotateCcw, X,
   CheckCircle2, XCircle, Clock, Variable,
-  UserCheck, StopCircle, Bot
+  UserCheck, StopCircle, Bot, Smartphone
 } from 'lucide-react'
 import type { Fluxo, FluxoNodeType, FluxoNodeData } from '@/types'
 import { makeNodeTypes, NODE_CONFIG } from '@/components/fluxos/FlowNodes'
@@ -244,6 +244,9 @@ export default function FluxoEditorPage() {
   const supabase = createClient()
 
   const [fluxo, setFluxo] = useState<Fluxo | null>(null)
+  const [instancias, setInstancias] = useState<{ id: string; nome: string }[]>([])
+  const [instanciaIds, setInstanciaIds] = useState<string[]>([])
+  const [instPopupAberto, setInstPopupAberto] = useState(false)
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [nodeSelecionado, setNodeSelecionado] = useState<Node | null>(null)
@@ -258,15 +261,30 @@ export default function FluxoEditorPage() {
   const [simRodando, setSimRodando] = useState(false)
   const simEndRef = useRef<HTMLDivElement>(null)
 
+  // Fecha popup de instâncias ao clicar fora
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest('[data-inst-popup]')) setInstPopupAberto(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
   const nodeTypes = useMemo(() => makeNodeTypes(), [])
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await supabase.from('fluxos').select('*').eq('id', id).single()
+      const { data: userData } = await supabase.auth.getUser()
+      const [{ data, error }, { data: insts }] = await Promise.all([
+        supabase.from('fluxos').select('*').eq('id', id).single(),
+        userData.user ? supabase.from('instancias').select('id, nome').eq('user_id', userData.user.id) : Promise.resolve({ data: [] }),
+      ])
       if (error || !data) { router.push('/dashboard/fluxos'); return }
       setFluxo(data)
+      setInstancias(insts || [])
+      setInstanciaIds(data.instancia_ids || [])
       setNodes((data.nodes || []).map((n: any) => ({
         id: n.id, type: n.type, position: n.position,
         data: { ...n.data, nodeType: n.type }, selected: false,
@@ -316,6 +334,7 @@ export default function FluxoEditorPage() {
       edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, label: e.label, animated: e.animated })),
       trigger_tipo: triggerTipo,
       trigger_valor: triggerValor,
+      instancia_ids: instanciaIds.length ? instanciaIds : null,
       updated_at: new Date().toISOString(),
     }).eq('id', fluxo.id)
     setSalvando(false)
@@ -439,6 +458,49 @@ export default function FluxoEditorPage() {
               <FlaskConical size={13} />
               Testar
             </button>
+
+            {/* Instâncias vinculadas */}
+            <div className="relative" data-inst-popup>
+              <button
+                onClick={() => setInstPopupAberto(v => !v)}
+                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                  instanciaIds.length > 0
+                    ? 'bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30'
+                    : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700'
+                }`}
+              >
+                <Smartphone size={13} />
+                {instanciaIds.length > 0 ? `${instanciaIds.length} número${instanciaIds.length > 1 ? 's' : ''}` : 'Todas'}
+              </button>
+              {instPopupAberto && (
+                <div className="absolute right-0 top-9 z-30 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl p-3 min-w-[220px]">
+                  <p className="text-xs text-zinc-400 font-semibold mb-2 px-1">Números vinculados</p>
+                  {instancias.length === 0 ? (
+                    <p className="text-xs text-zinc-500 px-1 py-1">Nenhuma instância disponível</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {instancias.map(inst => (
+                        <label key={inst.id} className="flex items-center gap-2.5 px-1 py-1 rounded-lg hover:bg-zinc-700 cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={instanciaIds.includes(inst.id)}
+                            onChange={e => setInstanciaIds(prev =>
+                              e.target.checked ? [...prev, inst.id] : prev.filter(x => x !== inst.id)
+                            )}
+                            className="w-3.5 h-3.5 rounded accent-green-500"
+                          />
+                          <span className="text-sm text-zinc-200">{inst.nome}</span>
+                        </label>
+                      ))}
+                      <p className="text-xs text-zinc-500 px-1 pt-1 border-t border-zinc-700 mt-1">
+                        Sem seleção = aplica em todas
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={toggleAtivo}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${

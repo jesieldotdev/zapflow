@@ -22,7 +22,7 @@ export default function FluxosPage() {
   const [loading, setLoading] = useState(true)
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState('')
-  const [form, setForm] = useState({ nome: '', instancia_id: '', trigger_tipo: 'palavra_chave', trigger_valor: '' })
+  const [form, setForm] = useState({ nome: '', instancia_ids: [] as string[], trigger_tipo: 'palavra_chave', trigger_valor: '' })
   const [mostrarForm, setMostrarForm] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -38,9 +38,6 @@ export default function FluxosPage() {
 
     setFluxos(fl || [])
     setInstancias(inst || [])
-    if (inst?.length && !form.instancia_id) {
-      setForm(p => ({ ...p, instancia_id: inst[0].id }))
-    }
     setLoading(false)
   }, [supabase])
 
@@ -58,7 +55,7 @@ export default function FluxosPage() {
       .from('fluxos')
       .insert({
         user_id: user.id,
-        instancia_id: form.instancia_id || null,
+        instancia_ids: form.instancia_ids.length ? form.instancia_ids : null,
         nome: form.nome.trim(),
         trigger_tipo: form.trigger_tipo,
         trigger_valor: form.trigger_valor || null,
@@ -123,17 +120,30 @@ export default function FluxosPage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1.5">Número WhatsApp</label>
-              <select
-                value={form.instancia_id}
-                onChange={e => setForm(p => ({ ...p, instancia_id: e.target.value }))}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
-              >
-                <option value="">Sem instância (configurar depois)</option>
-                {instancias.map(i => (
-                  <option key={i.id} value={i.id}>{i.nome}</option>
-                ))}
-              </select>
+              <label className="block text-sm text-zinc-400 mb-1.5">Números WhatsApp</label>
+              {instancias.length === 0 ? (
+                <p className="text-zinc-500 text-sm py-2">Nenhuma instância conectada</p>
+              ) : (
+                <div className="space-y-2">
+                  {instancias.map(i => (
+                    <label key={i.id} className="flex items-center gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={form.instancia_ids.includes(i.id)}
+                        onChange={e => setForm(p => ({
+                          ...p,
+                          instancia_ids: e.target.checked
+                            ? [...p.instancia_ids, i.id]
+                            : p.instancia_ids.filter(x => x !== i.id)
+                        }))}
+                        className="w-4 h-4 rounded accent-green-500"
+                      />
+                      <span className="text-sm text-zinc-300 group-hover:text-white transition-colors">{i.nome}</span>
+                    </label>
+                  ))}
+                  <p className="text-xs text-zinc-500 mt-1">Sem seleção = aplica em todas as instâncias</p>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm text-zinc-400 mb-1.5">Gatilho</label>
@@ -194,7 +204,7 @@ export default function FluxosPage() {
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {fluxos.map(f => {
-            const instancia = instancias.find(i => i.id === f.instancia_id)
+            const instsSelecionadas = (f.instancia_ids || []).map(id => instancias.find(i => i.id === id)).filter(Boolean)
             const qtdNodes = (f.nodes || []).length
             return (
               <div key={f.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-4 hover:border-zinc-700 transition-colors">
@@ -227,11 +237,18 @@ export default function FluxosPage() {
                     <MessageSquare size={11} />
                     {qtdNodes} {qtdNodes === 1 ? 'nó' : 'nós'}
                   </span>
-                  {instancia && (
-                    <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-1 rounded-md">
-                      {instancia.nome}
-                    </span>
-                  )}
+                  {instsSelecionadas.length > 0
+                    ? instsSelecionadas.map(inst => (
+                      <span key={inst!.id} className="text-xs text-zinc-400 bg-zinc-800 px-2 py-1 rounded-md">
+                        {inst!.nome}
+                      </span>
+                    ))
+                    : (
+                      <span className="text-xs text-zinc-500 bg-zinc-800/50 px-2 py-1 rounded-md">
+                        Todas as instâncias
+                      </span>
+                    )
+                  }
                 </div>
 
                 {/* Prévia dos nodes */}

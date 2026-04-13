@@ -178,7 +178,7 @@ CREATE TRIGGER on_auth_user_created
 CREATE TABLE fluxos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  instancia_id UUID REFERENCES instancias(id) ON DELETE SET NULL,
+  instancia_ids UUID[],  -- null = aplica em todas as instâncias do usuário
   nome TEXT NOT NULL,
   descricao TEXT,
   ativo BOOLEAN DEFAULT FALSE,
@@ -193,3 +193,11 @@ CREATE TABLE fluxos (
 
 ALTER TABLE fluxos ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "fluxos_own" ON fluxos FOR ALL USING (auth.uid() = user_id);
+
+-- ================================================
+-- Migration: instancia_id → instancia_ids (array)
+-- ================================================
+-- Execute no Supabase SQL Editor se o banco já existir:
+-- ALTER TABLE fluxos ADD COLUMN IF NOT EXISTS instancia_ids UUID[];
+-- UPDATE fluxos SET instancia_ids = ARRAY[instancia_id] WHERE instancia_id IS NOT NULL;
+-- ALTER TABLE fluxos DROP COLUMN IF EXISTS instancia_id;

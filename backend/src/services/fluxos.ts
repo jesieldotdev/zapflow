@@ -66,13 +66,15 @@ export async function processarMensagemFluxo(
     return false
   }
 
-  // Busca fluxos ativos: da instância específica OU sem instância definida (do mesmo usuário)
+  console.log(`[fluxo] user_id=${instancia.user_id} instanciaId=${instanciaId}`)
+
+  // Busca fluxos ativos: vinculados a esta instância OU sem instâncias definidas (null = todas)
   const { data: fluxos, error } = await supabase
     .from('fluxos')
     .select('*')
     .eq('user_id', instancia.user_id)
     .eq('ativo', true)
-    .or(`instancia_id.eq.${instanciaId},instancia_id.is.null`)
+    .or(`instancia_ids.cs.{${instanciaId}},instancia_ids.is.null`)
 
   if (error) console.log(`[fluxo] erro ao buscar fluxos:`, error.message)
   console.log(`[fluxo] fluxos ativos encontrados: ${fluxos?.length ?? 0}`)

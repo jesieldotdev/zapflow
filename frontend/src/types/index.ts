@@ -148,7 +148,7 @@ export interface FluxoEdge {
 export interface Fluxo {
   id: string
   user_id: string
-  instancia_id?: string
+  instancia_ids?: string[]
   nome: string
   descricao?: string
   ativo: boolean
