@@ -1,4 +1,4 @@
-// ZapFlow Backend v2
+// ZapFlow Backend
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
