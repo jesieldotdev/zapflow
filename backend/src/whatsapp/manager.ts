@@ -13,6 +13,7 @@ import QRCode from 'qrcode'
 import path from 'path'
 import fs from 'fs'
 import { processarMensagemChatbot } from '../services/chatbot'
+import { processarMensagemFluxo } from '../services/fluxos'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -96,21 +97,38 @@ export async function conectarInstancia(instanciaId: string, userId: string) {
 
   // Recebe mensagens → processa chatbot
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    console.log(`[upsert] type=${type} msgs=${messages.length}`)
     if (type !== 'notify') return
 
     for (const msg of messages) {
+      console.log(`[upsert] fromMe=${msg.key.fromMe} remoteJid=${msg.key.remoteJid} keys=${Object.keys(msg.message || {}).join(',')}`)
       if (msg.key.fromMe) continue
       if (!msg.message) continue
+
+      // Ignora mensagens de grupos
+      if (msg.key.remoteJid?.endsWith('@g.us')) continue
 
       const numero = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || ''
       const texto =
         msg.message.conversation ||
-        msg.message.extendedTextMessage?.text || ''
+        msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        msg.message.videoMessage?.caption ||
+        msg.message.buttonsResponseMessage?.selectedDisplayText ||
+        msg.message.listResponseMessage?.title || ''
 
+      console.log(`[upsert] numero=${numero} texto="${texto}"`)
       if (!texto || !numero) continue
 
-      // Processa no chatbot
-      await processarMensagemChatbot(instanciaId, numero, texto, sock)
+      console.log(`[msg] ${instanciaId} ← ${numero}: "${texto}"`)
+
+      // 1. Tenta processar por fluxo ativo
+      const fluxoProcessou = await processarMensagemFluxo(instanciaId, numero, texto, sock)
+
+      // 2. Se nenhum fluxo respondeu, tenta chatbot IA
+      if (!fluxoProcessou) {
+        await processarMensagemChatbot(instanciaId, numero, texto, sock)
+      }
     }
   })
 

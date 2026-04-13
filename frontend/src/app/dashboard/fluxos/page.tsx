@@ -21,6 +21,7 @@ export default function FluxosPage() {
   const [instancias, setInstancias] = useState<Instancia[]>([])
   const [loading, setLoading] = useState(true)
   const [criando, setCriando] = useState(false)
+  const [erro, setErro] = useState('')
   const [form, setForm] = useState({ nome: '', instancia_id: '', trigger_tipo: 'palavra_chave', trigger_valor: '' })
   const [mostrarForm, setMostrarForm] = useState(false)
   const router = useRouter()
@@ -48,9 +49,10 @@ export default function FluxosPage() {
   async function criar() {
     if (!form.nome.trim()) return
     setCriando(true)
+    setErro('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setCriando(false); return }
 
     const { data, error } = await supabase
       .from('fluxos')
@@ -68,9 +70,11 @@ export default function FluxosPage() {
       .single()
 
     setCriando(false)
-    if (!error && data) {
-      router.push(`/dashboard/fluxos/${data.id}`)
+    if (error) {
+      setErro(error.message)
+      return
     }
+    if (data) router.push(`/dashboard/fluxos/${data.id}`)
   }
 
   async function toggleAtivo(fluxo: Fluxo) {
@@ -168,6 +172,11 @@ export default function FluxosPage() {
               Cancelar
             </button>
           </div>
+          {erro && (
+            <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              Erro: {erro}
+            </p>
+          )}
         </div>
       )}
 

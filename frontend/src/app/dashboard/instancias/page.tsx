@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, Wifi, WifiOff, QrCode, Loader2, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Wifi, WifiOff, QrCode, Loader2, Trash2, RefreshCw, PowerOff, MoreVertical } from 'lucide-react'
 import type { Instancia } from '@/types'
 
 export default function InstanciasPage() {
@@ -12,6 +12,10 @@ export default function InstanciasPage() {
   const [criando, setCriando] = useState(false)
   const [qrModal, setQrModal] = useState<{ instanciaId: string; qr: string | null } | null>(null)
   const [conectando, setConectando] = useState<string | null>(null)
+  const [desconectando, setDesconectando] = useState<string | null>(null)
+  const [deletando, setDeletando] = useState<string | null>(null)
+  const [menuAberto, setMenuAberto] = useState<string | null>(null)
+  const [erro, setErro] = useState('')
   const supabase = createClient()
 
   const carregar = useCallback(async () => {
@@ -28,21 +32,57 @@ export default function InstanciasPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  useEffect(() => {
+    function fechar(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest('[data-menu]')) setMenuAberto(null)
+    }
+    document.addEventListener('mousedown', fechar)
+    return () => document.removeEventListener('mousedown', fechar)
+  }, [])
+
   async function criarInstancia() {
     if (!novoNome.trim()) return
     setCriando(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    setErro('')
 
-    await supabase.from('instancias').insert({
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setErro('Usuário não autenticado'); setCriando(false); return }
+
+    // Garante que o profile existe
+    await supabase.from('profiles').upsert({ id: user.id, email: user.email! }, { onConflict: 'id' })
+
+    const { error } = await supabase.from('instancias').insert({
       user_id: user.id,
       nome: novoNome.trim(),
       status: 'desconectado'
     })
 
+    if (error) {
+      setErro(error.message)
+      setCriando(false)
+      return
+    }
+
     setNovoNome('')
     await carregar()
     setCriando(false)
+  }
+
+  async function desconectar(instanciaId: string) {
+    setDesconectando(instanciaId)
+    setMenuAberto(null)
+    await fetch(`/api/instancias/${instanciaId}/desconectar`, { method: 'POST' })
+    await carregar()
+    setDesconectando(null)
+  }
+
+  async function deletarInstancia(instanciaId: string) {
+    if (!confirm('Deletar esta instância? Isso remove todos os dados relacionados.')) return
+    setDeletando(instanciaId)
+    setMenuAberto(null)
+    await supabase.from('instancias').delete().eq('id', instanciaId)
+    await carregar()
+    setDeletando(null)
   }
 
   async function iniciarConexao(instanciaId: string) {
@@ -76,6 +116,7 @@ export default function InstanciasPage() {
   }
 
   function monitorarConexao(instanciaId: string) {
+    // Realtime (instantâneo quando habilitado no Supabase)
     const channel = supabase
       .channel(`instancia-${instanciaId}`)
       .on('postgres_changes', {
@@ -88,9 +129,32 @@ export default function InstanciasPage() {
           setQrModal(null)
           carregar()
           supabase.removeChannel(channel)
+          clearInterval(pollStatus)
         }
       })
       .subscribe()
+
+    // Polling de fallback — verifica a cada 3s mesmo sem Realtime
+    const pollStatus = setInterval(async () => {
+      const { data } = await supabase
+        .from('instancias')
+        .select('status')
+        .eq('id', instanciaId)
+        .single()
+
+      if (data?.status === 'conectado') {
+        setQrModal(null)
+        carregar()
+        supabase.removeChannel(channel)
+        clearInterval(pollStatus)
+      }
+    }, 3000)
+
+    // Para de monitorar após 3 minutos
+    setTimeout(() => {
+      clearInterval(pollStatus)
+      supabase.removeChannel(channel)
+    }, 3 * 60 * 1000)
   }
 
   const STATUS_CONFIG = {
@@ -110,22 +174,29 @@ export default function InstanciasPage() {
       </div>
 
       {/* Criar nova */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6 flex gap-3">
-        <input
-          value={novoNome}
-          onChange={e => setNovoNome(e.target.value)}
-          placeholder="Nome da instância (ex: Suporte, Vendas)"
-          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-green-500 transition-colors"
-          onKeyDown={e => e.key === 'Enter' && criarInstancia()}
-        />
-        <button
-          onClick={criarInstancia}
-          disabled={criando || !novoNome.trim()}
-          className="flex items-center gap-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
-        >
-          {criando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-          Criar
-        </button>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6 space-y-3">
+        <div className="flex gap-3">
+          <input
+            value={novoNome}
+            onChange={e => setNovoNome(e.target.value)}
+            placeholder="Nome da instância (ex: Suporte, Vendas)"
+            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-green-500 transition-colors"
+            onKeyDown={e => e.key === 'Enter' && criarInstancia()}
+          />
+          <button
+            onClick={criarInstancia}
+            disabled={criando || !novoNome.trim()}
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
+          >
+            {criando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            Criar
+          </button>
+        </div>
+        {erro && (
+          <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            Erro: {erro}
+          </p>
+        )}
       </div>
 
       {/* Lista */}
@@ -171,6 +242,45 @@ export default function InstanciasPage() {
                       Conectar via QR
                     </button>
                   )}
+
+                  {/* Menu de ações */}
+                  <div className="relative" data-menu>
+                    <button
+                      onClick={() => setMenuAberto(menuAberto === inst.id ? null : inst.id)}
+                      className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+
+                    {menuAberto === inst.id && (
+                      <div className="absolute right-0 top-9 z-20 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl min-w-[160px] overflow-hidden">
+                        {inst.status === 'conectado' && (
+                          <button
+                            onClick={() => desconectar(inst.id)}
+                            disabled={desconectando === inst.id}
+                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-yellow-400 hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                          >
+                            {desconectando === inst.id
+                              ? <Loader2 size={14} className="animate-spin" />
+                              : <PowerOff size={14} />
+                            }
+                            Desconectar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deletarInstancia(inst.id)}
+                          disabled={deletando === inst.id}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                        >
+                          {deletando === inst.id
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : <Trash2 size={14} />
+                          }
+                          Deletar instância
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )

@@ -22,6 +22,17 @@ export async function processarMensagemChatbot(
     .eq('ativo', true)
     .single()
 
+  // Sempre salva a mensagem recebida na conversa (para o inbox)
+  const conversaInicial = await getOuCriarConversa(instanciaId, numero)
+  if (conversaInicial) {
+    const msgs = conversaInicial.mensagens || []
+    msgs.push({ role: 'user', content: texto, timestamp: new Date().toISOString() })
+    await supabase
+      .from('chatbot_conversas')
+      .update({ mensagens: msgs, updated_at: new Date().toISOString() })
+      .eq('id', conversaInicial.id)
+  }
+
   if (!chatbot) return
 
   // Verifica horário de funcionamento
@@ -48,15 +59,14 @@ export async function processarMensagemChatbot(
     return
   }
 
-  // Busca ou cria conversa
+  // Busca conversa já criada pelo bloco acima (não recria)
   let conversa = await getOuCriarConversa(instanciaId, numero)
 
   // Se a conversa está com humano, não responde
   if (conversa.status === 'humano') return
 
-  // Adiciona mensagem do usuário ao histórico
+  // Mensagem do usuário já foi salva acima — pega o histórico atualizado
   const mensagens = conversa.mensagens || []
-  mensagens.push({ role: 'user', content: texto, timestamp: new Date().toISOString() })
 
   // Manda indicador de digitação
   const jid = `${numero}@s.whatsapp.net`

@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import {
   Bot, User, Send, Loader2, Phone, RefreshCw,
-  CheckCheck, MessageSquare, Search, X, Paperclip,
-  UserCheck, BotMessageSquare, CircleOff
+  MessageSquare, Search, X, Paperclip,
+  UserCheck, BotMessageSquare, CircleOff, Trash2
 } from 'lucide-react'
 import type { ChatbotConversa, MensagemConversa, StatusConversa } from '@/types'
 
@@ -54,6 +54,7 @@ export default function ChatPage() {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [mudandoStatus, setMudandoStatus] = useState(false)
+  const [deletando, setDeletando] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -157,6 +158,16 @@ export default function ChatPage() {
       alert('Erro de conexão')
     }
     setEnviando(false)
+  }
+
+  async function deletarConversa() {
+    if (!conversa) return
+    if (!confirm('Deletar esta conversa? O histórico será perdido.')) return
+    setDeletando(true)
+    await supabase.from('chatbot_conversas').delete().eq('id', conversa.id)
+    setConversas(prev => prev.filter(c => c.id !== conversa.id))
+    setConversa(null)
+    setDeletando(false)
   }
 
   async function mudarStatus(status: StatusConversa) {
@@ -334,6 +345,14 @@ export default function ChatPage() {
                   Reabrir
                 </button>
               )}
+              <button
+                onClick={deletarConversa}
+                disabled={deletando}
+                className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                title="Deletar conversa"
+              >
+                {deletando ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              </button>
             </div>
           </div>
 
