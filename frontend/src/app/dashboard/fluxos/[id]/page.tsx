@@ -372,6 +372,12 @@ export default function FluxoEditorPage() {
     }
   }
 
+  function removerNode(nodeId: string) {
+    setNodes(ns => ns.filter(n => n.id !== nodeId))
+    setEdges(es => es.filter(e => e.source !== nodeId && e.target !== nodeId))
+    setNodeSelecionado(null)
+  }
+
   async function salvar() {
     if (!fluxo) return
     setSalvando(true)
@@ -778,6 +784,7 @@ export default function FluxoEditorPage() {
               }}
               onClose={() => setNodeSelecionado(null)}
               onChange={atualizarNodeData}
+              onDelete={removerNode}
             />
           </div>
         </>

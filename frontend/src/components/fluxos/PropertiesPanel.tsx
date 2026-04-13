@@ -1,6 +1,6 @@
 'use client'
 
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 import type { FluxoNode, FluxoNodeType, FluxoNodeData } from '@/types'
 import { NODE_CONFIG } from './FlowNodes'
 
@@ -13,6 +13,7 @@ interface Props {
   node: FluxoNode | null
   onClose: () => void
   onChange: (id: string, data: Partial<FluxoNodeData>) => void
+  onDelete: (id: string) => void
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -193,7 +194,7 @@ function Fields({ tipo, data, onChange }: { tipo: FluxoNodeType; data: FluxoNode
   }
 }
 
-export default function PropertiesPanel({ node, onClose, onChange }: Props) {
+export default function PropertiesPanel({ node, onClose, onChange, onDelete }: Props) {
   if (!node) return null
 
   const tipo = node.type as FluxoNodeType
@@ -220,6 +221,17 @@ export default function PropertiesPanel({ node, onClose, onChange }: Props) {
           data={node.data}
           onChange={partial => onChange(node.id, partial)}
         />
+      </div>
+
+      {/* Rodapé com botão de remover */}
+      <div className="px-4 py-3 border-t border-zinc-800 flex-shrink-0">
+        <button
+          onClick={() => onDelete(node.id)}
+          className="w-full flex items-center justify-center gap-2 text-sm font-medium text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg py-2 transition-colors"
+        >
+          <Trash2 size={14} />
+          Remover nó
+        </button>
       </div>
     </div>
   )
