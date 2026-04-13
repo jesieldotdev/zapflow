@@ -5,15 +5,20 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import {
   GitFork, Plus, Power, Pencil, Trash2,
-  Loader2, Zap, MessageSquare
+  Loader2, Zap, MessageSquare, Copy, Download,
+  Upload, ChevronDown, ChevronUp, LayoutTemplate, Check,
 } from 'lucide-react'
 import type { Fluxo, Instancia } from '@/types'
 import { NODE_CONFIG } from '@/components/fluxos/FlowNodes'
+import {
+  TEMPLATES, CATEGORIA_LABEL, CATEGORIA_COR,
+  encodeFluxoToken, decodeFluxoToken, remapearIds,
+} from '@/components/fluxos/templates'
 
 const TRIGGER_LABEL: Record<string, string> = {
-  palavra_chave:      'Palavra-chave',
-  qualquer_mensagem:  'Qualquer mensagem',
-  primeiro_contato:   'Primeiro contato',
+  palavra_chave:     'Palavra-chave',
+  qualquer_mensagem: 'Qualquer mensagem',
+  primeiro_contato:  'Primeiro contato',
 }
 
 export default function FluxosPage() {
@@ -22,8 +27,18 @@ export default function FluxosPage() {
   const [loading, setLoading] = useState(true)
   const [criando, setCriando] = useState(false)
   const [erro, setErro] = useState('')
-  const [form, setForm] = useState({ nome: '', instancia_ids: [] as string[], trigger_tipo: 'palavra_chave', trigger_valor: '' })
+  const [form, setForm] = useState({
+    nome: '', instancia_ids: [] as string[],
+    trigger_tipo: 'palavra_chave', trigger_valor: '',
+  })
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [mostrarTemplates, setMostrarTemplates] = useState(false)
+  const [mostrarImportar, setMostrarImportar] = useState(false)
+  const [tokenImport, setTokenImport] = useState('')
+  const [importando, setImportando] = useState(false)
+  const [erroImport, setErroImport] = useState('')
+  const [copiado, setCopiado] = useState<string | null>(null)
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -43,6 +58,7 @@ export default function FluxosPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // ── Criar fluxo do zero ──────────────────────────────────
   async function criar() {
     if (!form.nome.trim()) return
     setCriando(true)
@@ -67,11 +83,87 @@ export default function FluxosPage() {
       .single()
 
     setCriando(false)
-    if (error) {
-      setErro(error.message)
-      return
-    }
+    if (error) { setErro(error.message); return }
     if (data) router.push(`/dashboard/fluxos/${data.id}`)
+  }
+
+  // ── Usar template ────────────────────────────────────────
+  async function usarTemplate(templateId: string) {
+    const tpl = TEMPLATES.find(t => t.id === templateId)
+    if (!tpl) return
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { nodes, edges } = remapearIds(tpl)
+
+    const { data, error } = await supabase
+      .from('fluxos')
+      .insert({
+        user_id: user.id,
+        instancia_ids: null,
+        nome: tpl.nome,
+        trigger_tipo: tpl.trigger_tipo,
+        trigger_valor: tpl.trigger_valor || null,
+        ativo: false,
+        nodes,
+        edges,
+      })
+      .select()
+      .single()
+
+    if (!error && data) router.push(`/dashboard/fluxos/${data.id}`)
+  }
+
+  // ── Exportar token ───────────────────────────────────────
+  function exportarToken(fluxo: Fluxo) {
+    const token = encodeFluxoToken({
+      nome: fluxo.nome,
+      trigger_tipo: fluxo.trigger_tipo,
+      trigger_valor: fluxo.trigger_valor || '',
+      nodes: fluxo.nodes || [],
+      edges: fluxo.edges || [],
+    })
+    navigator.clipboard.writeText(token)
+    setCopiado(fluxo.id)
+    setTimeout(() => setCopiado(null), 2000)
+  }
+
+  // ── Importar token ───────────────────────────────────────
+  async function importarToken() {
+    if (!tokenImport.trim()) return
+    setImportando(true)
+    setErroImport('')
+
+    try {
+      const tokenData = decodeFluxoToken(tokenImport)
+      const { nodes, edges } = remapearIds(tokenData)
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Usuário não autenticado')
+
+      const { data, error } = await supabase
+        .from('fluxos')
+        .insert({
+          user_id: user.id,
+          instancia_ids: null,
+          nome: tokenData.nome + ' (importado)',
+          trigger_tipo: tokenData.trigger_tipo || 'palavra_chave',
+          trigger_valor: tokenData.trigger_valor || null,
+          ativo: false,
+          nodes,
+          edges,
+        })
+        .select()
+        .single()
+
+      if (error) throw new Error(error.message)
+      if (data) router.push(`/dashboard/fluxos/${data.id}`)
+    } catch (e: any) {
+      setErroImport('Token inválido ou corrompido. Verifique e tente novamente.')
+    } finally {
+      setImportando(false)
+    }
   }
 
   async function toggleAtivo(fluxo: Fluxo) {
@@ -90,21 +182,113 @@ export default function FluxosPage() {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+
+      {/* Header */}
       <div className="flex items-start justify-between mb-6 md:mb-8 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-white">Fluxos de Automação</h1>
           <p className="text-zinc-400 text-sm mt-1">Editor visual de automações com múltiplos tipos de mídia</p>
         </div>
-        <button
-          onClick={() => setMostrarForm(v => !v)}
-          className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors flex-shrink-0"
-        >
-          <Plus size={15} />
-          Novo fluxo
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => { setMostrarImportar(v => !v); setMostrarTemplates(false); setMostrarForm(false) }}
+            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-3.5 py-2.5 rounded-lg text-sm transition-colors border border-zinc-700"
+          >
+            <Upload size={14} />
+            Importar
+          </button>
+          <button
+            onClick={() => { setMostrarTemplates(v => !v); setMostrarImportar(false); setMostrarForm(false) }}
+            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-3.5 py-2.5 rounded-lg text-sm transition-colors border border-zinc-700"
+          >
+            <LayoutTemplate size={14} />
+            Templates
+            {mostrarTemplates ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+          <button
+            onClick={() => { setMostrarForm(v => !v); setMostrarTemplates(false); setMostrarImportar(false) }}
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors flex-shrink-0"
+          >
+            <Plus size={15} />
+            Novo fluxo
+          </button>
+        </div>
       </div>
 
-      {/* Form de criação */}
+      {/* Importar via token */}
+      {mostrarImportar && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 mb-6 space-y-4">
+          <div>
+            <h2 className="font-semibold text-white mb-1">Importar fluxo via token</h2>
+            <p className="text-zinc-500 text-xs">Cole o token copiado de outro fluxo ou de outra conta</p>
+          </div>
+          <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+            <input
+              value={tokenImport}
+              onChange={e => { setTokenImport(e.target.value); setErroImport('') }}
+              placeholder="Cole o token aqui..."
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-green-500 placeholder:text-zinc-600"
+            />
+            <button
+              onClick={importarToken}
+              disabled={importando || !tokenImport.trim()}
+              className="flex items-center gap-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors flex-shrink-0"
+            >
+              {importando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              Importar
+            </button>
+          </div>
+          {erroImport && (
+            <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              {erroImport}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Galeria de templates */}
+      {mostrarTemplates && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 mb-6 space-y-4">
+          <div>
+            <h2 className="font-semibold text-white mb-1">Templates prontos</h2>
+            <p className="text-zinc-500 text-xs">Escolha um template como ponto de partida e personalize</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            {TEMPLATES.map(tpl => (
+              <div
+                key={tpl.id}
+                className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-4 flex flex-col gap-3 hover:border-zinc-600 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold text-white text-sm">{tpl.nome}</h3>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${CATEGORIA_COR[tpl.categoria]}`}>
+                    {CATEGORIA_LABEL[tpl.categoria]}
+                  </span>
+                </div>
+                <p className="text-zinc-400 text-xs leading-relaxed">{tpl.descricao}</p>
+                <div className="flex flex-wrap gap-1.5 mt-auto">
+                  <span className="flex items-center gap-1 text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-md">
+                    <Zap size={10} className="text-yellow-400" />
+                    {TRIGGER_LABEL[tpl.trigger_tipo]}
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-md">
+                    <MessageSquare size={10} />
+                    {tpl.nodes.length} nós
+                  </span>
+                </div>
+                <button
+                  onClick={() => usarTemplate(tpl.id)}
+                  className="w-full bg-green-500/10 hover:bg-green-500/20 text-green-400 font-medium text-xs py-2 rounded-lg transition-colors border border-green-500/20 hover:border-green-500/40"
+                >
+                  Usar este template
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Form de criação manual */}
       {mostrarForm && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 mb-6 space-y-4">
           <h2 className="font-semibold text-white">Novo Fluxo</h2>
@@ -134,7 +318,7 @@ export default function FluxosPage() {
                           ...p,
                           instancia_ids: e.target.checked
                             ? [...p.instancia_ids, i.id]
-                            : p.instancia_ids.filter(x => x !== i.id)
+                            : p.instancia_ids.filter(x => x !== i.id),
                         }))}
                         className="w-4 h-4 rounded accent-green-500"
                       />
@@ -199,15 +383,27 @@ export default function FluxosPage() {
         <div className="text-center py-20 text-zinc-600">
           <GitFork size={48} className="mx-auto mb-3 opacity-30" />
           <p className="text-lg font-medium text-zinc-500">Nenhum fluxo criado</p>
-          <p className="text-sm mt-1">Crie seu primeiro fluxo de automação</p>
+          <p className="text-sm mt-1 mb-5">Crie do zero ou use um template pronto</p>
+          <button
+            onClick={() => setMostrarTemplates(true)}
+            className="inline-flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-lg text-sm transition-colors border border-zinc-700"
+          >
+            <LayoutTemplate size={14} />
+            Ver templates
+          </button>
         </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {fluxos.map(f => {
-            const instsSelecionadas = (f.instancia_ids || []).map(id => instancias.find(i => i.id === id)).filter(Boolean)
+            const instsSelecionadas = (f.instancia_ids || [])
+              .map(id => instancias.find(i => i.id === id))
+              .filter(Boolean)
             const qtdNodes = (f.nodes || []).length
             return (
-              <div key={f.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 flex flex-col gap-4 hover:border-zinc-700 transition-colors">
+              <div
+                key={f.id}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 flex flex-col gap-4 hover:border-zinc-700 transition-colors"
+              >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 pr-2">
                     <h3 className="font-semibold text-white truncate">{f.nome}</h3>
@@ -278,7 +474,17 @@ export default function FluxosPage() {
                     className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300 font-medium transition-colors"
                   >
                     <Pencil size={13} />
-                    Editar fluxo
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => exportarToken(f)}
+                    title="Copiar token para compartilhar"
+                    className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+                  >
+                    {copiado === f.id
+                      ? <><Check size={13} className="text-green-400" /><span className="text-green-400">Copiado!</span></>
+                      : <><Copy size={13} />Token</>
+                    }
                   </button>
                   <button
                     onClick={() => excluir(f.id)}
