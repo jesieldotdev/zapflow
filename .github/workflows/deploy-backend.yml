@@ -25,7 +25,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
             set -e
-            cd /root/zapflow
+            cd /root/zapvio
 
             echo "▶ Puxando código..."
             git pull origin main
@@ -43,7 +43,7 @@ jobs:
             npm run build
 
             echo "▶ Reiniciando PM2..."
-            pm2 restart zapflow-backend
+            pm2 restart zapvio-backend
 
             echo "✅ Deploy concluído"
           ENDSSH

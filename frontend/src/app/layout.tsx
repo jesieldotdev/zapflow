@@ -9,7 +9,7 @@ const jakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'ZapFlow — Automação WhatsApp',
+  title: 'Zapvio — Automação WhatsApp',
   description: 'Disparo em massa e chatbot com IA para WhatsApp',
 }
 

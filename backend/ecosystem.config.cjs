@@ -1,12 +1,12 @@
 module.exports = {
   apps: [
     {
-      name: 'zapflow-backend',
+      name: 'zapvio-backend',
       script: 'dist/index.js',
-      cwd: '/root/zapflow/backend',
+      cwd: '/root/zapvio/backend',
       node_args: '--require dotenv/config',
       env: {
-        DOTENV_CONFIG_PATH: '/root/zapflow/backend/.env.local',
+        DOTENV_CONFIG_PATH: '/root/zapvio/backend/.env.local',
       },
       instances: 1,
       exec_mode: 'fork',

@@ -68,7 +68,7 @@ export default function Sidebar({
         <div className="px-5 py-5 border-b border-zinc-800 flex items-center justify-between font-bold text-lg">
           <div className="flex items-center gap-2">
             <MessageCircle className="text-green-500" size={22} />
-            ZapFlow
+            Zapvio
           </div>
           <button
             onClick={onClose}

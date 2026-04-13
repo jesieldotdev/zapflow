@@ -1,4 +1,4 @@
-# ZapFlow — SaaS de Automação WhatsApp
+# Zapvio — SaaS de Automação WhatsApp
 
 ## Stack
 
@@ -18,7 +18,7 @@
 ## Arquitetura
 
 ```
-zapflow/
+zapvio/
 ├── frontend/          → Next.js (Vercel)
 │   └── src/app/
 │       ├── dashboard/         → Visão geral + status da conexão

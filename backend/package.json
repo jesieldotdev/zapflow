@@ -1,7 +1,7 @@
 {
-  "name": "zapflow-backend",
+  "name": "zapvio-backend",
   "version": "1.0.0",
-  "description": "ZapFlow Backend — Baileys WhatsApp Engine",
+  "description": "Zapvio Backend — Baileys WhatsApp Engine",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

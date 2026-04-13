@@ -50,7 +50,7 @@ export async function conectarInstancia(instanciaId: string, userId: string) {
       keys: makeCacheableSignalKeyStore(state.keys, console as any)
     },
     printQRInTerminal: false,
-    browser: ['ZapFlow', 'Chrome', '124.0.0'],
+    browser: ['Zapvio', 'Chrome', '124.0.0'],
     syncFullHistory: false,
   })
 

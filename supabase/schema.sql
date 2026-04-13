@@ -1,5 +1,5 @@
 -- ================================================
--- ZapFlow — Schema Supabase
+-- Zapvio — Schema Supabase
 -- ================================================
 
 -- Perfis dos usuários (vinculado ao auth.users)

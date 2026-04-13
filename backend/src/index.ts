@@ -1,4 +1,4 @@
-// ZapFlow Backend — auto-deploy
+// Zapvio Backend — auto-deploy
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
@@ -31,6 +31,6 @@ app.use('/api/chatbot', chatbotRouter)
 app.use('/api/conversas', conversasRouter)
 
 app.listen(PORT, () => {
-  console.log(`ZapFlow Backend rodando na porta ${PORT}`)
+  console.log(`Zapvio Backend rodando na porta ${PORT}`)
   reconectarTodasInstancias()
 })

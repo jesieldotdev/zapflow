@@ -34,7 +34,7 @@ export default function DashboardShell({
           </button>
           <div className="flex items-center gap-2 font-bold text-white">
             <MessageCircle className="text-green-500" size={18} />
-            ZapFlow
+            Zapvio
           </div>
         </header>
 

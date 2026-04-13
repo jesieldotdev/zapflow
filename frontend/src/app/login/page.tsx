@@ -46,7 +46,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 font-bold text-xl mb-8">
           <MessageCircle className="text-green-500" size={24} />
-          ZapFlow
+          Zapvio
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
