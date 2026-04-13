@@ -32,7 +32,7 @@ jobs:
 
             echo "▶ Instalando dependências..."
             cd backend
-            npm ci --omit=dev
+            npm install --omit=dev --force
 
             echo "▶ Compilando TypeScript..."
             npm run build
