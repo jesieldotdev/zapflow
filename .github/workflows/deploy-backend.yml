@@ -30,9 +30,14 @@ jobs:
             echo "▶ Puxando código..."
             git pull origin main
 
-            echo "▶ Instalando dependências..."
+            echo "▶ Verificando dependências..."
             cd backend
-            npm install --omit=dev --force
+            if git diff HEAD~1 HEAD -- package.json | grep -q .; then
+              echo "  package.json mudou, instalando pacotes..."
+              npm install --legacy-peer-deps --no-package-lock
+            else
+              echo "  Sem mudanças em package.json, pulando."
+            fi
 
             echo "▶ Compilando TypeScript..."
             npm run build
