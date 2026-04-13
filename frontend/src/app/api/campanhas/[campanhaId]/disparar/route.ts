@@ -5,8 +5,9 @@ import { backendFetch } from '@/lib/backend'
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { campanhaId: string } }
+  { params }: { params: Promise<{ campanhaId: string }> }
 ) {
+  const { campanhaId } = await params
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -16,7 +17,7 @@ export async function POST(
   const { data: campanha } = await supabase
     .from('campanhas')
     .select('id')
-    .eq('id', params.campanhaId)
+    .eq('id', campanhaId)
     .eq('user_id', user.id)
     .single()
 
@@ -24,7 +25,7 @@ export async function POST(
 
   try {
     const data = await backendFetch(
-      `/campanhas/${params.campanhaId}/disparar`,
+      `/campanhas/${campanhaId}/disparar`,
       user.id,
       { method: 'POST' }
     )

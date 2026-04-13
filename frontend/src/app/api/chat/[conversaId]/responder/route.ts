@@ -4,8 +4,9 @@ import { backendFetch } from '@/lib/backend'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { conversaId: string } }
+  { params }: { params: Promise<{ conversaId: string }> }
 ) {
+  const { conversaId } = await params
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -14,7 +15,7 @@ export async function POST(
 
   try {
     const data = await backendFetch(
-      `/conversas/${params.conversaId}/responder`,
+      `/conversas/${conversaId}/responder`,
       user.id,
       { method: 'POST', body: JSON.stringify(body) }
     )

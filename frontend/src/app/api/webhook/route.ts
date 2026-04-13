@@ -3,11 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 const PLANO_POR_PRODUTO: Record<string, { plano: string; instancias: number }> = {
   'STARTER': { plano: 'starter', instancias: 1 },
   'PRO':     { plano: 'pro',     instancias: 3 },
@@ -15,6 +10,11 @@ const PLANO_POR_PRODUTO: Record<string, { plano: string; instancias: number }> =
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
   const body = await req.text()
 
   // Verifica assinatura Kiwify

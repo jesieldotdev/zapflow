@@ -3,8 +3,9 @@ import { createServerSupabase } from '@/lib/supabase-server'
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { conversaId: string } }
+  { params }: { params: Promise<{ conversaId: string }> }
 ) {
+  const { conversaId } = await params
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -14,7 +15,7 @@ export async function POST(
   const { error } = await supabase
     .from('chatbot_conversas')
     .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', params.conversaId)
+    .eq('id', conversaId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

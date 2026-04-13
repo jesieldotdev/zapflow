@@ -5,15 +5,16 @@ import { backendFetch } from '@/lib/backend'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { instanciaId: string } }
+  { params }: { params: Promise<{ instanciaId: string }> }
 ) {
+  const { instanciaId } = await params
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   try {
-    const data = await backendFetch(`/instancias/${params.instanciaId}/qrcode`, user.id)
+    const data = await backendFetch(`/instancias/${instanciaId}/qrcode`, user.id)
     return NextResponse.json(data)
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 404 })
@@ -22,8 +23,9 @@ export async function GET(
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { instanciaId: string } }
+  { params }: { params: Promise<{ instanciaId: string }> }
 ) {
+  const { instanciaId } = await params
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -31,7 +33,7 @@ export async function POST(
 
   try {
     const data = await backendFetch(
-      `/instancias/${params.instanciaId}/conectar`,
+      `/instancias/${instanciaId}/conectar`,
       user.id,
       { method: 'POST' }
     )
