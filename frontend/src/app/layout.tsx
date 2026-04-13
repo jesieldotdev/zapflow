@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
+import SwRegister from '@/components/SwRegister'
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -11,12 +12,19 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Zapvio — Automação WhatsApp',
   description: 'Disparo em massa e chatbot com IA para WhatsApp',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Zapvio',
+  },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: '#25D366',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR" className={jakarta.variable}>
       <body className="bg-zinc-950 text-zinc-100 antialiased font-sans">
         {children}
+        <SwRegister />
       </body>
     </html>
   )
