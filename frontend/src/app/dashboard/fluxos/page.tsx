@@ -89,15 +89,15 @@ export default function FluxosPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+      <div className="flex items-start justify-between mb-6 md:mb-8 gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-white">Fluxos de Automação</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-white">Fluxos de Automação</h1>
           <p className="text-zinc-400 text-sm mt-1">Editor visual de automações com múltiplos tipos de mídia</p>
         </div>
         <button
           onClick={() => setMostrarForm(v => !v)}
-          className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
+          className="flex items-center gap-2 bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors flex-shrink-0"
         >
           <Plus size={15} />
           Novo fluxo
@@ -106,9 +106,9 @@ export default function FluxosPage() {
 
       {/* Form de criação */}
       {mostrarForm && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6 space-y-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 mb-6 space-y-4">
           <h2 className="font-semibold text-white">Novo Fluxo</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-zinc-400 mb-1.5">Nome do fluxo</label>
               <input
@@ -207,15 +207,15 @@ export default function FluxosPage() {
             const instsSelecionadas = (f.instancia_ids || []).map(id => instancias.find(i => i.id === id)).filter(Boolean)
             const qtdNodes = (f.nodes || []).length
             return (
-              <div key={f.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-4 hover:border-zinc-700 transition-colors">
+              <div key={f.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 flex flex-col gap-4 hover:border-zinc-700 transition-colors">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-white">{f.nome}</h3>
+                  <div className="min-w-0 pr-2">
+                    <h3 className="font-semibold text-white truncate">{f.nome}</h3>
                     {f.descricao && <p className="text-zinc-500 text-xs mt-0.5">{f.descricao}</p>}
                   </div>
                   <button
                     onClick={() => toggleAtivo(f)}
-                    className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                    className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors flex-shrink-0 ${
                       f.ativo
                         ? 'bg-green-500/20 text-green-400 border-green-500/30'
                         : 'bg-zinc-800 text-zinc-400 border-zinc-700'

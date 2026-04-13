@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import {
   Bot, User, Send, Loader2, Phone, RefreshCw,
   MessageSquare, Search, X, Paperclip,
-  UserCheck, BotMessageSquare, CircleOff, Trash2
+  UserCheck, BotMessageSquare, CircleOff, Trash2, ArrowLeft
 } from 'lucide-react'
 import type { ChatbotConversa, MensagemConversa, StatusConversa } from '@/types'
 
@@ -55,15 +55,15 @@ export default function ChatPage() {
   const [enviando, setEnviando] = useState(false)
   const [mudandoStatus, setMudandoStatus] = useState(false)
   const [deletando, setDeletando] = useState(false)
+  // Mobile: 'list' shows conversation list, 'chat' shows active conversation
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
-  // Carrega conversas
   const carregar = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Busca instâncias do usuário
     const { data: instancias } = await supabase
       .from('instancias')
       .select('id')
@@ -82,7 +82,6 @@ export default function ChatPage() {
     setConversas(data || [])
     setLoading(false)
 
-    // Atualiza conversa aberta se mudou
     if (conversa) {
       const atualizada = (data || []).find(c => c.id === conversa.id)
       if (atualizada) setConversa(atualizada)
@@ -91,7 +90,6 @@ export default function ChatPage() {
 
   useEffect(() => { carregar() }, [])
 
-  // Realtime — escuta mudanças nas conversas
   useEffect(() => {
     const channel = supabase
       .channel('conversas-inbox')
@@ -107,7 +105,6 @@ export default function ChatPage() {
     return () => { supabase.removeChannel(channel) }
   }, [supabase, carregar])
 
-  // Scroll automático para última mensagem
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [conversa?.mensagens])
@@ -121,13 +118,17 @@ export default function ChatPage() {
     return true
   })
 
+  function selecionarConversa(c: ChatbotConversa) {
+    setConversa(c)
+    setMobileView('chat')
+  }
+
   async function enviar() {
     if (!texto.trim() || !conversa) return
     setEnviando(true)
     const msg = texto.trim()
     setTexto('')
 
-    // Atimista: adiciona na UI imediatamente
     const novaMsg: MensagemConversa = {
       role: 'assistant',
       content: msg,
@@ -148,7 +149,6 @@ export default function ChatPage() {
       if (!res.ok) {
         const err = await res.json()
         alert('Erro ao enviar: ' + err.error)
-        // Reverte
         setConversa(prev => prev ? {
           ...prev,
           mensagens: (prev.mensagens || []).filter(m => m !== novaMsg)
@@ -167,6 +167,7 @@ export default function ChatPage() {
     await supabase.from('chatbot_conversas').delete().eq('id', conversa.id)
     setConversas(prev => prev.filter(c => c.id !== conversa.id))
     setConversa(null)
+    setMobileView('list')
     setDeletando(false)
   }
 
@@ -184,10 +185,14 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-950">
+    <div className="flex flex-1 overflow-hidden bg-zinc-950">
 
       {/* ---- Coluna esquerda: lista de conversas ---- */}
-      <div className="w-80 flex-shrink-0 border-r border-zinc-800 flex flex-col">
+      <div className={`
+        flex-shrink-0 border-r border-zinc-800 flex flex-col
+        w-full lg:w-80
+        ${mobileView === 'chat' ? 'hidden lg:flex' : 'flex'}
+      `}>
 
         {/* Header lista */}
         <div className="p-4 border-b border-zinc-800">
@@ -242,7 +247,7 @@ export default function ChatPage() {
               return (
                 <button
                   key={c.id}
-                  onClick={() => setConversa(c)}
+                  onClick={() => selecionarConversa(c)}
                   className={`w-full text-left px-4 py-3.5 border-b border-zinc-800/50 hover:bg-zinc-900 transition-colors ${
                     ativa ? 'bg-zinc-900 border-l-2 border-l-green-500' : ''
                   }`}
@@ -282,37 +287,48 @@ export default function ChatPage() {
 
       {/* ---- Coluna direita: conversa aberta ---- */}
       {conversa ? (
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className={`
+          flex-1 flex flex-col overflow-hidden
+          ${mobileView === 'list' ? 'hidden lg:flex' : 'flex'}
+        `}>
 
           {/* Header da conversa */}
-          <div className="px-5 py-3.5 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center">
+          <div className="px-3 sm:px-5 py-3.5 border-b border-zinc-800 bg-zinc-900 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              {/* Back button - mobile only */}
+              <button
+                onClick={() => setMobileView('list')}
+                className="lg:hidden text-zinc-400 hover:text-white transition-colors flex-shrink-0 p-1"
+                aria-label="Voltar"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
                 <Phone size={14} className="text-zinc-400" />
               </div>
-              <div>
-                <p className="font-semibold text-white">
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-sm truncate">
                   {conversa.nome_contato || conversa.numero}
                 </p>
                 {conversa.nome_contato && (
                   <p className="text-zinc-500 text-xs">{conversa.numero}</p>
                 )}
               </div>
-              <span className={`text-xs px-2 py-0.5 rounded border font-medium ${STATUS_BADGE[conversa.status].cor}`}>
+              <span className={`text-xs px-2 py-0.5 rounded border font-medium flex-shrink-0 ${STATUS_BADGE[conversa.status].cor}`}>
                 {STATUS_BADGE[conversa.status].label}
               </span>
             </div>
 
             {/* Ações de status */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               {conversa.status === 'bot' && (
                 <button
                   onClick={() => mudarStatus('humano')}
                   disabled={mudandoStatus}
-                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 sm:gap-1.5 text-xs font-medium px-2 sm:px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
                 >
                   {mudandoStatus ? <Loader2 size={12} className="animate-spin" /> : <UserCheck size={13} />}
-                  Assumir atendimento
+                  <span className="hidden sm:inline">Assumir</span>
                 </button>
               )}
               {conversa.status === 'humano' && (
@@ -320,18 +336,18 @@ export default function ChatPage() {
                   <button
                     onClick={() => mudarStatus('bot')}
                     disabled={mudandoStatus}
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 sm:gap-1.5 text-xs font-medium px-2 sm:px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
                   >
                     {mudandoStatus ? <Loader2 size={12} className="animate-spin" /> : <BotMessageSquare size={13} />}
-                    Devolver pro bot
+                    <span className="hidden sm:inline">Pro bot</span>
                   </button>
                   <button
                     onClick={() => mudarStatus('encerrado')}
                     disabled={mudandoStatus}
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 sm:gap-1.5 text-xs font-medium px-2 sm:px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 transition-colors disabled:opacity-50"
                   >
                     <CircleOff size={13} />
-                    Encerrar
+                    <span className="hidden sm:inline">Encerrar</span>
                   </button>
                 </>
               )}
@@ -339,10 +355,10 @@ export default function ChatPage() {
                 <button
                   onClick={() => mudarStatus('bot')}
                   disabled={mudandoStatus}
-                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 sm:gap-1.5 text-xs font-medium px-2 sm:px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors disabled:opacity-50"
                 >
                   <RefreshCw size={13} />
-                  Reabrir
+                  <span className="hidden sm:inline">Reabrir</span>
                 </button>
               )}
               <button
@@ -357,7 +373,7 @@ export default function ChatPage() {
           </div>
 
           {/* Mensagens */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-3">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3">
             {(conversa.mensagens || []).length === 0 ? (
               <div className="flex items-center justify-center h-full text-zinc-600">
                 <p className="text-sm">Nenhuma mensagem ainda</p>
@@ -373,7 +389,7 @@ export default function ChatPage() {
                     key={i}
                     className={`flex ${isContato ? 'justify-start' : 'justify-end'}`}
                   >
-                    <div className={`flex items-end gap-2 max-w-[70%] ${isContato ? 'flex-row' : 'flex-row-reverse'}`}>
+                    <div className={`flex items-end gap-1.5 sm:gap-2 max-w-[85%] sm:max-w-[70%] ${isContato ? 'flex-row' : 'flex-row-reverse'}`}>
                       {/* Avatar */}
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mb-1 ${
                         isContato ? 'bg-zinc-700' : isBot ? 'bg-blue-500/20' : 'bg-green-500/20'
@@ -386,7 +402,7 @@ export default function ChatPage() {
                         }
                       </div>
                       {/* Bubble */}
-                      <div className={`rounded-2xl px-4 py-2.5 text-sm max-w-full ${
+                      <div className={`rounded-2xl px-3 sm:px-4 py-2.5 text-sm max-w-full ${
                         isContato
                           ? 'bg-zinc-800 text-white rounded-bl-sm'
                           : isBot
@@ -411,19 +427,19 @@ export default function ChatPage() {
           </div>
 
           {/* Input de resposta */}
-          <div className="p-4 border-t border-zinc-800 bg-zinc-900">
+          <div className="p-3 sm:p-4 border-t border-zinc-800 bg-zinc-900">
             {conversa.status === 'encerrado' ? (
               <p className="text-center text-zinc-600 text-sm py-2">
                 Conversa encerrada — reabra para enviar mensagens
               </p>
             ) : conversa.status === 'bot' ? (
-              <div className="flex items-center gap-3 text-zinc-500 text-sm py-2">
-                <Bot size={16} className="text-blue-400" />
-                <span>Bot está respondendo. Clique em <strong className="text-white">Assumir atendimento</strong> para responder manualmente.</span>
+              <div className="flex items-center gap-2 sm:gap-3 text-zinc-500 text-sm py-2">
+                <Bot size={16} className="text-blue-400 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Bot respondendo. Toque em <strong className="text-white">Assumir</strong> para responder.</span>
               </div>
             ) : (
-              <div className="flex gap-3">
-                <button className="text-zinc-500 hover:text-zinc-300 transition-colors mt-1">
+              <div className="flex gap-2 sm:gap-3">
+                <button className="text-zinc-500 hover:text-zinc-300 transition-colors mt-1 flex-shrink-0">
                   <Paperclip size={18} />
                 </button>
                 <textarea
@@ -435,14 +451,14 @@ export default function ChatPage() {
                       enviar()
                     }
                   }}
-                  placeholder="Digite uma mensagem... (Enter para enviar, Shift+Enter para nova linha)"
+                  placeholder="Digite uma mensagem..."
                   rows={2}
-                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-green-500 resize-none transition-colors"
+                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 sm:px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-green-500 resize-none transition-colors"
                 />
                 <button
                   onClick={enviar}
                   disabled={enviando || !texto.trim()}
-                  className="self-end bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black p-2.5 rounded-xl transition-colors"
+                  className="self-end bg-green-500 hover:bg-green-400 disabled:opacity-40 text-black p-2.5 rounded-xl transition-colors flex-shrink-0"
                 >
                   {enviando
                     ? <Loader2 size={16} className="animate-spin" />
@@ -454,10 +470,13 @@ export default function ChatPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-zinc-600">
+        <div className={`
+          flex-1 flex-col items-center justify-center text-zinc-600
+          ${mobileView === 'list' ? 'hidden lg:flex' : 'flex'}
+        `}>
           <MessageSquare size={48} className="mb-3 opacity-30" />
           <p className="text-lg font-medium">Selecione uma conversa</p>
-          <p className="text-sm mt-1 opacity-60">Escolha uma conversa na lista ao lado</p>
+          <p className="text-sm mt-1 opacity-60">Escolha uma conversa na lista</p>
         </div>
       )}
     </div>

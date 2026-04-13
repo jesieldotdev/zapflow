@@ -28,21 +28,21 @@ export default async function DashboardPage() {
   ]
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-xl md:text-2xl font-bold text-white">Dashboard</h1>
         <p className="text-zinc-400 text-sm mt-1">Visão geral da sua automação</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
         {cards.map((c, i) => (
-          <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-zinc-400 text-sm">{c.label}</p>
-              <c.icon className={c.cor} size={18} />
+          <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <p className="text-zinc-400 text-xs md:text-sm">{c.label}</p>
+              <c.icon className={c.cor} size={16} />
             </div>
-            <p className="text-3xl font-bold text-white">{c.valor}</p>
+            <p className="text-2xl md:text-3xl font-bold text-white">{c.valor}</p>
             {c.total !== undefined && (
               <p className="text-zinc-500 text-xs mt-1">de {c.total} total</p>
             )}
@@ -51,17 +51,17 @@ export default async function DashboardPage() {
       </div>
 
       {/* Campanhas recentes */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6">
         <h2 className="font-semibold text-white mb-4">Campanhas recentes</h2>
         {!campanhas?.length ? (
           <p className="text-zinc-500 text-sm">Nenhuma campanha criada ainda.</p>
         ) : (
           <div className="space-y-2">
             {campanhas.slice(0, 5).map(c => (
-              <div key={c.id} className="flex items-center justify-between py-2 border-b border-zinc-800 last:border-0">
-                <span className="text-sm text-zinc-300">{c.id.slice(0, 8)}...</span>
+              <div key={c.id} className="flex items-center justify-between py-2 border-b border-zinc-800 last:border-0 gap-2">
+                <span className="text-sm text-zinc-300 truncate min-w-0">{c.id.slice(0, 8)}...</span>
                 <StatusBadge status={c.status} />
-                <span className="text-sm text-zinc-400">{c.enviados} enviados</span>
+                <span className="text-xs md:text-sm text-zinc-400 flex-shrink-0">{c.enviados} env.</span>
               </div>
             ))}
           </div>
@@ -80,7 +80,7 @@ function StatusBadge({ status }: { status: string }) {
     erro: 'bg-red-500/20 text-red-400',
   }
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${map[status] || 'bg-zinc-700 text-zinc-300'}`}>
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${map[status] || 'bg-zinc-700 text-zinc-300'}`}>
       {status.replace('_', ' ')}
     </span>
   )

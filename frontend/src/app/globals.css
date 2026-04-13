@@ -13,6 +13,18 @@
   box-sizing: border-box;
 }
 
+/* Prevent horizontal overflow on mobile */
+html, body {
+  overflow-x: hidden;
+}
+
+/* Improve touch targets on mobile */
+@media (max-width: 1024px) {
+  button, a, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 4px;
 }

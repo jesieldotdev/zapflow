@@ -109,7 +109,7 @@ export default function ChatbotPage() {
 
   if (!instancias.length) {
     return (
-      <div className="p-8 flex flex-col items-center justify-center h-full text-center">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center text-center">
         <Bot size={48} className="text-zinc-600 mb-4" />
         <h2 className="text-xl font-bold text-white mb-2">Nenhum número conectado</h2>
         <p className="text-zinc-400">Conecte um número WhatsApp primeiro para configurar o chatbot.</p>
@@ -118,190 +118,192 @@ export default function ChatbotPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl">
-      <div className="flex items-center gap-3 mb-8">
-        <Bot className="text-green-500" size={28} />
-        <div>
-          <h1 className="text-2xl font-bold text-white">Chatbot com IA</h1>
-          <p className="text-zinc-400 text-sm">Responde clientes automaticamente com Claude</p>
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+      <div className="max-w-2xl">
+        <div className="flex items-center gap-3 mb-6 md:mb-8">
+          <Bot className="text-green-500 flex-shrink-0" size={24} />
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-white">Chatbot com IA</h1>
+            <p className="text-zinc-400 text-sm">Responde clientes automaticamente com Claude</p>
+          </div>
         </div>
-      </div>
 
-      {/* Selecionar instância */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-5">
-        <label className="block text-sm font-medium text-zinc-300 mb-2">Número WhatsApp</label>
-        <select
-          value={instanciaSel}
-          onChange={e => setInstanciaSel(e.target.value)}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
-        >
-          {instancias.map(i => (
-            <option key={i.id} value={i.id}>{i.nome} (+{i.numero})</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Ativo / Inativo */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-5 flex items-center justify-between">
-        <div>
-          <p className="font-medium text-white">Status do chatbot</p>
-          <p className="text-zinc-400 text-sm">Ativar ou pausar o bot</p>
-        </div>
-        <button
-          onClick={() => setChatbot(p => ({ ...p, ativo: !p.ativo }))}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-            chatbot.ativo
-              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-              : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-          }`}
-        >
-          <Power size={15} />
-          {chatbot.ativo ? 'Ativo' : 'Inativo'}
-        </button>
-      </div>
-
-      {/* Prompt */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-5 space-y-4">
-        <h2 className="font-semibold text-white">Personalidade do Bot</h2>
-
-        <div>
-          <label className="block text-sm text-zinc-400 mb-1.5">Nome do assistente</label>
-          <input
-            value={chatbot.nome_bot || ''}
-            onChange={e => setChatbot(p => ({ ...p, nome_bot: e.target.value }))}
+        {/* Selecionar instância */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 mb-5">
+          <label className="block text-sm font-medium text-zinc-300 mb-2">Número WhatsApp</label>
+          <select
+            value={instanciaSel}
+            onChange={e => setInstanciaSel(e.target.value)}
             className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-zinc-400 mb-1.5">Prompt do sistema</label>
-          <textarea
-            value={chatbot.prompt_sistema || ''}
-            onChange={e => setChatbot(p => ({ ...p, prompt_sistema: e.target.value }))}
-            rows={5}
-            placeholder="Você é um assistente de atendimento da empresa X. Responda apenas sobre produtos e pedidos..."
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500 resize-none"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1.5">Modelo IA</label>
-            <select
-              value={chatbot.modelo || ''}
-              onChange={e => setChatbot(p => ({ ...p, modelo: e.target.value }))}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
-            >
-              {MODELOS.map(m => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1.5">Máx. tokens resposta</label>
-            <input
-              type="number"
-              min={100} max={2000}
-              value={chatbot.max_tokens || 500}
-              onChange={e => setChatbot(p => ({ ...p, max_tokens: Number(e.target.value) }))}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Horário */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-5 space-y-4">
-        <h2 className="font-semibold text-white">Horário de Atendimento</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1.5">Início</label>
-            <input
-              type="time"
-              value={chatbot.horario_inicio || '08:00'}
-              onChange={e => setChatbot(p => ({ ...p, horario_inicio: e.target.value }))}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1.5">Fim</label>
-            <input
-              type="time"
-              value={chatbot.horario_fim || '18:00'}
-              onChange={e => setChatbot(p => ({ ...p, horario_fim: e.target.value }))}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm text-zinc-400 mb-2">Dias da semana</label>
-          <div className="flex gap-2 flex-wrap">
-            {DIAS.map((dia, i) => (
-              <button
-                key={i}
-                onClick={() => toggleDia(i)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  chatbot.dias_semana?.includes(i)
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                    : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-                }`}
-              >
-                {dia}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Palavras de saída */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6 space-y-3">
-        <h2 className="font-semibold text-white">Palavras para falar com humano</h2>
-        <p className="text-zinc-400 text-xs">Quando o cliente digitar essas palavras, o bot para e avisa que vai transferir.</p>
-        <div className="flex flex-wrap gap-2">
-          {chatbot.palavras_saida?.map(p => (
-            <span key={p} className="flex items-center gap-1.5 bg-zinc-800 text-zinc-300 text-sm px-2.5 py-1 rounded-lg">
-              {p}
-              <button onClick={() => removerPalavra(p)} className="text-zinc-500 hover:text-red-400 transition-colors">
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <input
-            value={novaPalavra}
-            onChange={e => setNovaPalavra(e.target.value)}
-            placeholder="Nova palavra-chave..."
-            onKeyDown={e => e.key === 'Enter' && adicionarPalavra()}
-            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500"
-          />
-          <button
-            onClick={adicionarPalavra}
-            className="bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-2 rounded-lg transition-colors"
           >
-            <Plus size={15} />
+            {instancias.map(i => (
+              <option key={i.id} value={i.id}>{i.nome} (+{i.numero})</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Ativo / Inativo */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 mb-5 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-medium text-white">Status do chatbot</p>
+            <p className="text-zinc-400 text-sm">Ativar ou pausar o bot</p>
+          </div>
+          <button
+            onClick={() => setChatbot(p => ({ ...p, ativo: !p.ativo }))}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex-shrink-0 ${
+              chatbot.ativo
+                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+            }`}
+          >
+            <Power size={15} />
+            {chatbot.ativo ? 'Ativo' : 'Inativo'}
           </button>
         </div>
-      </div>
 
-      {/* Salvar */}
-      {msg && (
-        <p className={`text-sm mb-4 p-3 rounded-lg ${
-          msg.includes('Erro')
-            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-            : 'bg-green-500/10 text-green-400 border border-green-500/20'
-        }`}>
-          {msg}
-        </p>
-      )}
-      <button
-        onClick={salvar}
-        disabled={salvando}
-        className="flex items-center gap-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-semibold px-6 py-3 rounded-xl transition-colors"
-      >
-        {salvando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-        Salvar configurações
-      </button>
+        {/* Prompt */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 mb-5 space-y-4">
+          <h2 className="font-semibold text-white">Personalidade do Bot</h2>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1.5">Nome do assistente</label>
+            <input
+              value={chatbot.nome_bot || ''}
+              onChange={e => setChatbot(p => ({ ...p, nome_bot: e.target.value }))}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1.5">Prompt do sistema</label>
+            <textarea
+              value={chatbot.prompt_sistema || ''}
+              onChange={e => setChatbot(p => ({ ...p, prompt_sistema: e.target.value }))}
+              rows={5}
+              placeholder="Você é um assistente de atendimento da empresa X. Responda apenas sobre produtos e pedidos..."
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500 resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1.5">Modelo IA</label>
+              <select
+                value={chatbot.modelo || ''}
+                onChange={e => setChatbot(p => ({ ...p, modelo: e.target.value }))}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
+              >
+                {MODELOS.map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1.5">Máx. tokens resposta</label>
+              <input
+                type="number"
+                min={100} max={2000}
+                value={chatbot.max_tokens || 500}
+                onChange={e => setChatbot(p => ({ ...p, max_tokens: Number(e.target.value) }))}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Horário */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 mb-5 space-y-4">
+          <h2 className="font-semibold text-white">Horário de Atendimento</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1.5">Início</label>
+              <input
+                type="time"
+                value={chatbot.horario_inicio || '08:00'}
+                onChange={e => setChatbot(p => ({ ...p, horario_inicio: e.target.value }))}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-zinc-400 mb-1.5">Fim</label>
+              <input
+                type="time"
+                value={chatbot.horario_fim || '18:00'}
+                onChange={e => setChatbot(p => ({ ...p, horario_fim: e.target.value }))}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-green-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Dias da semana</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {DIAS.map((dia, i) => (
+                <button
+                  key={i}
+                  onClick={() => toggleDia(i)}
+                  className={`px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    chatbot.dias_semana?.includes(i)
+                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                      : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                  }`}
+                >
+                  {dia}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Palavras de saída */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-5 mb-6 space-y-3">
+          <h2 className="font-semibold text-white">Palavras para falar com humano</h2>
+          <p className="text-zinc-400 text-xs">Quando o cliente digitar essas palavras, o bot para e avisa que vai transferir.</p>
+          <div className="flex flex-wrap gap-2">
+            {chatbot.palavras_saida?.map(p => (
+              <span key={p} className="flex items-center gap-1.5 bg-zinc-800 text-zinc-300 text-sm px-2.5 py-1 rounded-lg">
+                {p}
+                <button onClick={() => removerPalavra(p)} className="text-zinc-500 hover:text-red-400 transition-colors">
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={novaPalavra}
+              onChange={e => setNovaPalavra(e.target.value)}
+              placeholder="Nova palavra-chave..."
+              onKeyDown={e => e.key === 'Enter' && adicionarPalavra()}
+              className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500"
+            />
+            <button
+              onClick={adicionarPalavra}
+              className="bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-2 rounded-lg transition-colors"
+            >
+              <Plus size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Salvar */}
+        {msg && (
+          <p className={`text-sm mb-4 p-3 rounded-lg ${
+            msg.includes('Erro')
+              ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+              : 'bg-green-500/10 text-green-400 border border-green-500/20'
+          }`}>
+            {msg}
+          </p>
+        )}
+        <button
+          onClick={salvar}
+          disabled={salvando}
+          className="flex items-center gap-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-semibold px-6 py-3 rounded-xl transition-colors"
+        >
+          {salvando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          Salvar configurações
+        </button>
+      </div>
     </div>
   )
 }
