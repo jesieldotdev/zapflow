@@ -24,7 +24,8 @@ import {
   FlaskConical, Send, RotateCcw, X,
   CheckCircle2, XCircle, Clock, Variable,
   UserCheck, StopCircle, Bot, Smartphone,
-  PanelLeftOpen,
+  PanelLeftOpen, HelpCircle, BookOpen,
+  Workflow, Braces, GitBranch, Keyboard,
 } from 'lucide-react'
 import type { Fluxo, FluxoNodeType, FluxoNodeData } from '@/types'
 import { makeNodeTypes, NODE_CONFIG } from '@/components/fluxos/FlowNodes'
@@ -297,6 +298,9 @@ export default function FluxoEditorPage() {
   const [paletaAberta, setPaletaAberta] = useState(true)
   const [grupoAberto, setGrupoAberto] = useState<string>('Mensagens')
   const [paletaMobile, setPaletaMobile] = useState(false)
+
+  // Ajuda
+  const [ajudaAberta, setAjudaAberta] = useState(false)
 
   // Simulação
   const [simAberta, setSimAberta] = useState(false)
@@ -577,6 +581,15 @@ export default function FluxoEditorPage() {
             </button>
 
             <button
+              onClick={() => setAjudaAberta(true)}
+              className="flex items-center gap-1 text-xs font-semibold px-2 sm:px-3 py-1.5 rounded-lg border transition-colors bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700 hover:text-white"
+              title="Ajuda"
+            >
+              <HelpCircle size={13} />
+              <span className="hidden sm:inline">Ajuda</span>
+            </button>
+
+            <button
               onClick={salvar}
               disabled={salvando}
               className="flex items-center gap-1 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-semibold text-sm px-3 sm:px-4 py-1.5 rounded-lg transition-colors"
@@ -588,7 +601,7 @@ export default function FluxoEditorPage() {
         </div>
 
         {/* ReactFlow canvas */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 0%, #0e0e1a 0%, #09090b 65%)' }}>
           <ReactFlow
             nodes={nodesComDestaque}
             edges={edges}
@@ -604,7 +617,7 @@ export default function FluxoEditorPage() {
             defaultEdgeOptions={{ animated: true, style: { stroke: '#4ade80', strokeWidth: 1.5 } }}
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#27272a" />
+            <Background variant={BackgroundVariant.Lines} gap={36} size={0.4} color="#18182a" />
             <Controls style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} />
             <MiniMap
               className="hidden sm:block"
@@ -768,6 +781,157 @@ export default function FluxoEditorPage() {
             />
           </div>
         </>
+      )}
+
+      {/* ---- Modal de ajuda ---- */}
+      {ajudaAberta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setAjudaAberta(false)} />
+          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 flex-shrink-0">
+              <div className="flex items-center gap-2.5 text-white">
+                <BookOpen size={18} className="text-green-400" />
+                <span className="font-bold text-base">Guia de uso dos Fluxos</span>
+              </div>
+              <button onClick={() => setAjudaAberta(false)} className="text-zinc-500 hover:text-white transition-colors p-1">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Conteúdo scrollável */}
+            <div className="overflow-y-auto flex-1 p-5 space-y-6 text-sm">
+
+              {/* Como funciona */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Workflow size={15} className="text-green-400 flex-shrink-0" />
+                  <h2 className="font-bold text-white">Como funciona um Fluxo</h2>
+                </div>
+                <p className="text-zinc-400 leading-relaxed mb-3">
+                  Um fluxo é uma sequência de nós conectados por linhas. Quando uma mensagem chega, o sistema executa os nós em ordem, do <span className="text-emerald-400 font-medium">Início</span> até o <span className="text-red-400 font-medium">Fim</span> (ou <span className="text-green-400 font-medium">Transferir</span>).
+                </p>
+                <div className="bg-zinc-800/60 rounded-xl p-3 flex items-center gap-2 text-xs text-zinc-400 flex-wrap">
+                  <span className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 font-medium">Início</span>
+                  <span>→</span>
+                  <span className="px-2 py-1 rounded-lg bg-blue-500/20 text-blue-400 font-medium">Texto / Imagem…</span>
+                  <span>→</span>
+                  <span className="px-2 py-1 rounded-lg bg-yellow-500/20 text-yellow-400 font-medium">Condição</span>
+                  <span>→</span>
+                  <span className="px-2 py-1 rounded-lg bg-red-500/20 text-red-400 font-medium">Fim</span>
+                </div>
+              </section>
+
+              {/* Variáveis */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Braces size={15} className="text-teal-400 flex-shrink-0" />
+                  <h2 className="font-bold text-white">Variáveis</h2>
+                </div>
+                <p className="text-zinc-400 leading-relaxed mb-3">
+                  Use <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-teal-300 font-mono text-xs">{'{{nome_variavel}}'}</code> em mensagens de texto para inserir valores dinâmicos em tempo de execução.
+                </p>
+                <div className="space-y-2">
+                  {[
+                    { variavel: '{{mensagem}}', desc: 'Última mensagem enviada pelo usuário' },
+                    { variavel: '{{nome}}', desc: 'Exemplo: variável definida por você com o nó Variável' },
+                  ].map(({ variavel, desc }) => (
+                    <div key={variavel} className="flex items-start gap-3 bg-zinc-800/60 rounded-lg px-3 py-2">
+                      <code className="font-mono text-xs text-teal-300 whitespace-nowrap mt-0.5">{variavel}</code>
+                      <span className="text-zinc-400 text-xs">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-zinc-500 text-xs mt-3">
+                  O nó <span className="text-teal-400">Variável</span> captura um valor (como <code className="bg-zinc-800 px-1 rounded font-mono">{'{{mensagem}}'}</code>) e salva com um nome que você escolhe para usar nos próximos nós.
+                </p>
+              </section>
+
+              {/* Tipos de nós */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Plus size={15} className="text-blue-400 flex-shrink-0" />
+                  <h2 className="font-bold text-white">Tipos de Nós</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(Object.entries(NODE_CONFIG) as [FluxoNodeType, typeof NODE_CONFIG[FluxoNodeType]][]).map(([tipo, cfg]) => {
+                    const Icon = cfg.icon
+                    return (
+                      <div key={tipo} className="flex items-start gap-2.5 bg-zinc-800/50 rounded-lg px-3 py-2.5">
+                        <span className={`mt-0.5 flex-shrink-0 ${cfg.cor.split(' ').find(c => c.startsWith('text-')) || 'text-zinc-400'}`}>
+                          <Icon size={13} />
+                        </span>
+                        <div>
+                          <p className="font-medium text-zinc-200 text-xs">{cfg.label}</p>
+                          <p className="text-zinc-500 text-xs mt-0.5">{cfg.descricao}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+
+              {/* Condições */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <GitBranch size={15} className="text-yellow-400 flex-shrink-0" />
+                  <h2 className="font-bold text-white">Condições (bifurcações)</h2>
+                </div>
+                <p className="text-zinc-400 leading-relaxed mb-3">
+                  O nó <span className="text-yellow-400 font-medium">Condição</span> cria dois caminhos no fluxo. Configure o que verificar e conecte cada saída:
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2.5">
+                    <p className="text-emerald-400 font-semibold text-xs mb-1">Saída Sim</p>
+                    <p className="text-zinc-400 text-xs">Quando a condição é verdadeira. Conecte o handle <span className="text-emerald-400">verde</span> (esquerda).</p>
+                  </div>
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
+                    <p className="text-red-400 font-semibold text-xs mb-1">Saída Não</p>
+                    <p className="text-zinc-400 text-xs">Quando a condição é falsa. Conecte o handle <span className="text-red-400">vermelho</span> (direita).</p>
+                  </div>
+                </div>
+                <p className="text-zinc-500 text-xs mt-3">
+                  Operadores disponíveis: <span className="text-zinc-300">contém</span>, <span className="text-zinc-300">é igual a</span>, <span className="text-zinc-300">começa com</span>, <span className="text-zinc-300">não contém</span>. Você pode verificar a mensagem do usuário ou o valor de uma variável.
+                </p>
+              </section>
+
+              {/* Atalhos */}
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Keyboard size={15} className="text-zinc-400 flex-shrink-0" />
+                  <h2 className="font-bold text-white">Atalhos e dicas</h2>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { tecla: 'Delete / Backspace', desc: 'Remove o nó selecionado (clique no nó primeiro)' },
+                    { tecla: 'Hover no nó → 🗑', desc: 'Botão de remoção aparece ao passar o mouse' },
+                    { tecla: 'Clique no nó', desc: 'Abre o painel de propriedades para editar o conteúdo' },
+                    { tecla: 'Arrastar entre handles', desc: 'Cria uma conexão entre dois nós' },
+                    { tecla: 'Scroll / Pinça', desc: 'Zoom no canvas' },
+                    { tecla: 'Arrastar canvas vazio', desc: 'Move a visualização' },
+                  ].map(({ tecla, desc }) => (
+                    <div key={tecla} className="flex items-start gap-3">
+                      <kbd className="bg-zinc-800 border border-zinc-600 rounded px-2 py-0.5 text-xs text-zinc-300 font-mono whitespace-nowrap flex-shrink-0 mt-0.5">{tecla}</kbd>
+                      <span className="text-zinc-400 text-xs mt-1">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-zinc-800 flex-shrink-0 flex items-center justify-between">
+              <p className="text-zinc-600 text-xs">Use o botão <span className="text-violet-400">Testar</span> para simular o fluxo antes de ativar.</p>
+              <button
+                onClick={() => setAjudaAberta(false)}
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

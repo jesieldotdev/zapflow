@@ -1,10 +1,10 @@
 'use client'
 
-import { Handle, Position, NodeProps } from '@xyflow/react'
+import { Handle, Position, NodeProps, useReactFlow } from '@xyflow/react'
 import {
   Play, MessageSquare, Image, Music, FileText,
   Link, GitBranch, Clock, Bot, Variable, UserCheck,
-  StopCircle
+  StopCircle, Trash2
 } from 'lucide-react'
 import type { FluxoNodeData, FluxoNodeType } from '@/types'
 
@@ -58,19 +58,25 @@ function preview(tipo: FluxoNodeType, data: FluxoNodeData): string {
   }
 }
 
-function FluxoNodeBase({ data, selected }: FluxoNodeProps) {
+function FluxoNodeBase({ data, selected, id }: FluxoNodeProps) {
   const tipo = data.nodeType
   const cfg = NODE_CONFIG[tipo]
   const Icon = cfg.icon
   const isInicio = tipo === 'inicio'
   const isFim = tipo === 'fim'
   const isCondicao = tipo === 'condicao'
+  const { deleteElements } = useReactFlow()
+
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    deleteElements({ nodes: [{ id }] })
+  }
 
   return (
     <div className={`
-      min-w-[200px] max-w-[240px] rounded-xl border-2 bg-zinc-900 shadow-lg
-      transition-all duration-150
-      ${selected ? 'border-white/40 shadow-white/10' : cfg.borda}
+      min-w-[200px] max-w-[240px] rounded-xl border-2 bg-zinc-900 shadow-xl
+      transition-all duration-150 group
+      ${selected ? 'border-white/40 shadow-lg shadow-white/5' : cfg.borda}
     `}>
       {/* Handle de entrada (topo) — não aparece no início */}
       {!isInicio && (
@@ -84,7 +90,14 @@ function FluxoNodeBase({ data, selected }: FluxoNodeProps) {
       {/* Header */}
       <div className={`flex items-center gap-2 px-3 py-2 rounded-t-[10px] ${cfg.cor}`}>
         <Icon size={14} />
-        <span className="text-xs font-semibold">{cfg.label}</span>
+        <span className="text-xs font-semibold flex-1">{cfg.label}</span>
+        <button
+          onClick={handleDelete}
+          className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-400 ml-1 nodrag"
+          title="Remover nó"
+        >
+          <Trash2 size={11} />
+        </button>
       </div>
 
       {/* Corpo */}
