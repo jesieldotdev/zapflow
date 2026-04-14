@@ -17,6 +17,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Zapvio',
+    startupImage: '/icons/512',
   },
 }
 
