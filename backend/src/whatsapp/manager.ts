@@ -166,72 +166,96 @@ export async function conectarComPairingCode(instanciaId: string, userId: string
   instanciasAtivas.set(instanciaId, sock)
   sock.ev.on('creds.update', saveCreds)
 
+  let pairingCodeGerado: string | null = null
+
   // Solicita pairing code se ainda não registrado
   if (!sock.authState.creds.registered) {
     const numero = telefone.replace(/\D/g, '')
     try {
       const code = await sock.requestPairingCode(numero)
+      pairingCodeGerado = code
       pairingCodes.set(instanciaId, code)
       console.log(`[${instanciaId}] Pairing code gerado: ${code}`)
     } catch (err: any) {
       console.error(`[${instanciaId}] Erro ao solicitar pairing code:`, err.message)
+      await atualizarStatus(instanciaId, 'erro')
+      return { error: err.message }
     }
   }
 
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update
-
-    if (connection === 'close') {
-      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
-      const deveReconectar = statusCode !== DisconnectReason.loggedOut
-
+  // Espera a conexão ser estabelecida
+  return new Promise<{ ok: boolean; code?: string; error?: string }>((resolve) => {
+    const timeoutId = setTimeout(() => {
+      sock.ev.off('connection.update', onConnectionUpdate)
+      sock.ev.off('messages.upsert', onMessagesUpsert)
       instanciasAtivas.delete(instanciaId)
       pairingCodes.delete(instanciaId)
+      resolve({ ok: false, error: 'Tempo de espera pelo código de pareamento expirado' })
+    }, 60000) // 60 segundos timeout
 
-      if (deveReconectar) {
-        await atualizarStatus(instanciaId, 'desconectado')
-        setTimeout(() => conectarInstancia(instanciaId, userId), 3000)
-      } else {
-        await atualizarStatus(instanciaId, 'desconectado')
-        fs.rmSync(sessaoPath, { recursive: true, force: true })
+    const onConnectionUpdate = async (update: any) => {
+      const { connection, lastDisconnect } = update
+
+      if (connection === 'close') {
+        clearTimeout(timeoutId)
+        sock.ev.off('connection.update', onConnectionUpdate)
+        sock.ev.off('messages.upsert', onMessagesUpsert)
+        instanciasAtivas.delete(instanciaId)
+        pairingCodes.delete(instanciaId)
+
+        const statusCode = (lastDisconnect?.error as any)?.output?.statusCode
+        const deveReconectar = statusCode !== DisconnectReason.loggedOut
+
+        if (deveReconectar) {
+          await atualizarStatus(instanciaId, 'desconectado')
+          setTimeout(() => conectarComPairingCode(instanciaId, userId, telefone), 3000)
+        } else {
+          await atualizarStatus(instanciaId, 'desconectado')
+          fs.rmSync(sessaoPath, { recursive: true, force: true })
+        }
+      }
+
+      if (connection === 'open') {
+        clearTimeout(timeoutId)
+        sock.ev.off('connection.update', onConnectionUpdate)
+        sock.ev.off('messages.upsert', onMessagesUpsert)
+        const numero = sock.user?.id?.split(':')[0] || ''
+        pairingCodes.delete(instanciaId)
+        await atualizarStatus(instanciaId, 'conectado', numero)
+        console.log(`[${instanciaId}] Conectado via pairing code: ${numero}`)
+        resolve({ ok: true, code: pairingCodeGerado })
       }
     }
 
-    if (connection === 'open') {
-      pairingCodes.delete(instanciaId)
-      const numero = sock.user?.id?.split(':')[0] || ''
-      await atualizarStatus(instanciaId, 'conectado', numero)
-      console.log(`[${instanciaId}] Conectado via pairing code: ${numero}`)
-    }
-  })
+    const onMessagesUpsert = async ({ messages, type }: any) => {
+      if (type !== 'notify') return
+      for (const msg of messages) {
+        if (msg.key.fromMe) continue
+        if (!msg.message) continue
+        if (msg.key.remoteJid?.endsWith('@g.us')) continue
 
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return
-    for (const msg of messages) {
-      if (msg.key.fromMe) continue
-      if (!msg.message) continue
-      if (msg.key.remoteJid?.endsWith('@g.us')) continue
+        const numero = msg.key.remoteJid?.replace(/@s\.whatsapp\.net$/, '') || ''
+        const texto =
+          msg.message.conversation ||
+          msg.message.extendedTextMessage?.text ||
+          msg.message.imageMessage?.caption ||
+          msg.message.videoMessage?.caption ||
+          msg.message.buttonsResponseMessage?.selectedDisplayText ||
+          msg.message.listResponseMessage?.title || ''
 
-      const numero = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || ''
-      const texto =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        msg.message.imageMessage?.caption ||
-        msg.message.videoMessage?.caption ||
-        msg.message.buttonsResponseMessage?.selectedDisplayText ||
-        msg.message.listResponseMessage?.title || ''
+        if (!texto || !numero) continue
 
-      if (!texto || !numero) continue
-
-      upsertContato(instanciaId, userId, numero, msg.pushName, sock).catch(() => {})
-      const fluxoProcessou = await processarMensagemFluxo(instanciaId, numero, texto, sock)
-      if (!fluxoProcessou) {
-        await processarMensagemChatbot(instanciaId, numero, texto, sock)
+        upsertContato(instanciaId, userId, numero, msg.pushName, sock).catch(() => {})
+        const fluxoProcessou = await processarMensagemFluxo(instanciaId, numero, texto, sock)
+        if (!fluxoProcessou) {
+          await processarMensagemChatbot(instanciaId, numero, texto, sock)
+        }
       }
     }
-  })
 
-  return { ok: true }
+    sock.ev.on('connection.update', onConnectionUpdate)
+    sock.ev.on('messages.upsert', onMessagesUpsert)
+  })
 }
 
 export async function desconectarInstancia(instanciaId: string) {
@@ -244,6 +268,7 @@ export async function desconectarInstancia(instanciaId: string) {
   pairingCodes.delete(instanciaId)
   await atualizarStatus(instanciaId, 'desconectado')
 }
+
 
 export function getQRCode(instanciaId: string) {
   return qrCodes.get(instanciaId) || null
