@@ -149,6 +149,11 @@ export async function conectarComPairingCode(instanciaId: string, userId: string
   await atualizarStatus(instanciaId, 'conectando')
 
   const sessaoPath = getSessaoPath(instanciaId)
+
+  // Limpa sessão anterior para garantir pairing limpo (credenciais parciais invalidam o código)
+  fs.rmSync(sessaoPath, { recursive: true, force: true })
+  fs.mkdirSync(sessaoPath, { recursive: true })
+
   const { state, saveCreds } = await useMultiFileAuthState(sessaoPath)
   const { version } = await fetchLatestBaileysVersion()
 
@@ -191,9 +196,10 @@ export async function conectarComPairingCode(instanciaId: string, userId: string
       pairingCodes.delete(instanciaId)
 
       if (deveReconectar) {
-        console.log(`[${instanciaId}] Reconectando via pairing code...`)
+        console.log(`[${instanciaId}] Reconectando...`)
         await atualizarStatus(instanciaId, 'desconectado')
-        setTimeout(() => conectarComPairingCode(instanciaId, userId, telefone), 3000)
+        // Usa conectarInstancia para preservar a sessão já pareada
+        setTimeout(() => conectarInstancia(instanciaId, userId), 3000)
       } else {
         console.log(`[${instanciaId}] Deslogado — removendo sessão`)
         await atualizarStatus(instanciaId, 'desconectado')
