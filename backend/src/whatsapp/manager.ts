@@ -173,16 +173,23 @@ export async function conectarComPairingCode(instanciaId: string, userId: string
   instanciasAtivas.set(instanciaId, sock)
   sock.ev.on('creds.update', saveCreds)
 
+  // Flags para controlar o ciclo de vida do pairing
+  let pairingCodeSolicitado = false
+  let conectadoComSucesso = false
+
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
 
-    // Quando o QR dispara, o socket está pronto para pairing code
-    if (qr && !sock.authState.creds.registered) {
+    // Solicita pairing code apenas UMA vez — cada chamada gera um código novo
+    // que invalida o anterior; o evento qr pode disparar várias vezes
+    if (qr && !pairingCodeSolicitado) {
+      pairingCodeSolicitado = true
       try {
         const code = await sock.requestPairingCode(numero)
         pairingCodes.set(instanciaId, code)
-        console.log(`[${instanciaId}] Pairing code gerado: ${code}`)
+        console.log(`[${instanciaId}] Pairing code: ${code}`)
       } catch (err: any) {
+        pairingCodeSolicitado = false // permite nova tentativa se deu erro
         console.error(`[${instanciaId}] Erro ao solicitar pairing code:`, err.message)
         await atualizarStatus(instanciaId, 'erro')
       }
@@ -190,24 +197,30 @@ export async function conectarComPairingCode(instanciaId: string, userId: string
 
     if (connection === 'close') {
       const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
-      const deveReconectar = statusCode !== DisconnectReason.loggedOut
-
       instanciasAtivas.delete(instanciaId)
       pairingCodes.delete(instanciaId)
 
-      if (deveReconectar) {
-        console.log(`[${instanciaId}] Reconectando...`)
-        await atualizarStatus(instanciaId, 'desconectado')
-        // Usa conectarInstancia para preservar a sessão já pareada
-        setTimeout(() => conectarInstancia(instanciaId, userId), 3000)
+      if (conectadoComSucesso) {
+        // Sessão já foi pareada com sucesso — reconecta normalmente preservando a sessão
+        if (statusCode !== DisconnectReason.loggedOut) {
+          console.log(`[${instanciaId}] Reconectando sessão pareada...`)
+          await atualizarStatus(instanciaId, 'desconectado')
+          setTimeout(() => conectarInstancia(instanciaId, userId), 3000)
+        } else {
+          console.log(`[${instanciaId}] Deslogado — removendo sessão`)
+          await atualizarStatus(instanciaId, 'desconectado')
+          fs.rmSync(sessaoPath, { recursive: true, force: true })
+        }
       } else {
-        console.log(`[${instanciaId}] Deslogado — removendo sessão`)
+        // Pairing não foi concluído — limpa sessão parcial, usuário tenta de novo manualmente
+        console.log(`[${instanciaId}] Pairing não concluído (code: ${statusCode}) — sessão removida`)
         await atualizarStatus(instanciaId, 'desconectado')
         fs.rmSync(sessaoPath, { recursive: true, force: true })
       }
     }
 
     if (connection === 'open') {
+      conectadoComSucesso = true
       const numeroConectado = sock.user?.id?.split(':')[0] || ''
       pairingCodes.delete(instanciaId)
       await atualizarStatus(instanciaId, 'conectado', numeroConectado)
