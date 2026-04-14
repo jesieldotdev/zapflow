@@ -20,6 +20,14 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Atualizar variáveis de ambiente na VPS
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "sed -i 's|^OPENROUTER_API_KEY=.*|OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}|' /root/zapflow/backend/.env.local && \
+             sed -i 's|^OPENROUTER_MODEL=.*|OPENROUTER_MODEL=${{ secrets.OPENROUTER_MODEL }}|' /root/zapflow/backend/.env.local && \
+             echo '  .env.local atualizado'"
+
       - name: Deploy → git pull + build + restart
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
@@ -44,9 +52,9 @@ jobs:
 
             echo "▶ Reiniciando PM2..."
             if pm2 describe zapvio-backend > /dev/null 2>&1; then
-              pm2 restart zapvio-backend
+              pm2 restart zapvio-backend --update-env
             elif pm2 describe zapflow-backend > /dev/null 2>&1; then
-              pm2 restart zapflow-backend
+              pm2 restart zapflow-backend --update-env
             else
               echo "  Processo não encontrado, iniciando novo..."
               pm2 start /root/zapflow/backend/dist/index.js --name zapflow-backend
