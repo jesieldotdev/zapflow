@@ -26,6 +26,7 @@ import {
   UserCheck, StopCircle, Bot, Smartphone,
   PanelLeftOpen, HelpCircle, BookOpen,
   Workflow, Braces, GitBranch, Keyboard,
+  Wand2,
 } from 'lucide-react'
 import type { Fluxo, FluxoNodeType, FluxoNodeData } from '@/types'
 import { makeNodeTypes, NODE_CONFIG } from '@/components/fluxos/FlowNodes'
@@ -302,6 +303,12 @@ export default function FluxoEditorPage() {
   // Ajuda
   const [ajudaAberta, setAjudaAberta] = useState(false)
 
+  // IA geradora de fluxo
+  const [iaAberta, setIaAberta] = useState(false)
+  const [iaDescricao, setIaDescricao] = useState('')
+  const [iaGerando, setIaGerando] = useState(false)
+  const [iaErro, setIaErro] = useState('')
+
   // Simulação
   const [simAberta, setSimAberta] = useState(false)
   const [simInput, setSimInput] = useState('')
@@ -407,6 +414,52 @@ export default function FluxoEditorPage() {
     const novoAtivo = !fluxo.ativo
     await supabase.from('fluxos').update({ ativo: novoAtivo }).eq('id', fluxo.id)
     setFluxo(f => f ? { ...f, ativo: novoAtivo } : f)
+  }
+
+  async function gerarComIA() {
+    if (!iaDescricao.trim() || iaGerando) return
+    setIaGerando(true)
+    setIaErro('')
+    try {
+      const res = await fetch('/api/ia/gerar-fluxo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          descricao: iaDescricao,
+          fluxoAtual: nodes.length > 0
+            ? {
+                nodes: nodes.map(n => ({
+                  id: n.id, type: n.type, position: n.position,
+                  data: Object.fromEntries(Object.entries(n.data).filter(([k]) => k !== 'nodeType')),
+                })),
+                edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle })),
+              }
+            : undefined,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Erro ao gerar fluxo')
+      }
+      const gerado = await res.json()
+      setNodes((gerado.nodes as any[]).map(n => ({
+        id: n.id, type: n.type, position: n.position,
+        data: { ...n.data, nodeType: n.type }, selected: false,
+      })))
+      setEdges((gerado.edges as any[]).map(e => ({
+        id: e.id, source: e.source, target: e.target,
+        sourceHandle: e.sourceHandle,
+        animated: true,
+        style: { stroke: '#4ade80', strokeWidth: 1.5 },
+        labelStyle: { fill: '#a1a1aa', fontSize: 11 },
+      })))
+      setIaAberta(false)
+      setIaDescricao('')
+    } catch (err: any) {
+      setIaErro(err.message)
+    } finally {
+      setIaGerando(false)
+    }
   }
 
   async function executarSim() {
@@ -584,6 +637,15 @@ export default function FluxoEditorPage() {
             >
               <Power size={13} />
               <span className="hidden sm:inline">{fluxo?.ativo ? 'Ativo' : 'Inativo'}</span>
+            </button>
+
+            <button
+              onClick={() => { setIaAberta(true); setIaErro('') }}
+              className="flex items-center gap-1 text-xs font-semibold px-2 sm:px-3 py-1.5 rounded-lg border transition-colors bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30"
+              title="Gerar fluxo com IA"
+            >
+              <Wand2 size={13} />
+              <span className="hidden sm:inline">IA</span>
             </button>
 
             <button
@@ -788,6 +850,95 @@ export default function FluxoEditorPage() {
             />
           </div>
         </>
+      )}
+
+      {/* ---- Modal de IA ---- */}
+      {iaAberta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => !iaGerando && setIaAberta(false)}
+          />
+          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 flex-shrink-0">
+              <div className="flex items-center gap-2.5 text-white">
+                <Wand2 size={18} className="text-violet-400" />
+                <span className="font-bold text-base">Gerar fluxo com IA</span>
+              </div>
+              <button
+                onClick={() => !iaGerando && setIaAberta(false)}
+                disabled={iaGerando}
+                className="text-zinc-500 hover:text-white transition-colors p-1 disabled:opacity-40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4">
+              <p className="text-zinc-400 text-sm leading-relaxed">
+                Descreva o fluxo que deseja{nodes.length > 0 ? ' ou as modificações no fluxo atual' : ''}. A IA vai gerar os nós e conexões automaticamente.
+              </p>
+
+              <textarea
+                value={iaDescricao}
+                onChange={e => setIaDescricao(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) gerarComIA() }}
+                disabled={iaGerando}
+                rows={4}
+                placeholder={
+                  nodes.length > 0
+                    ? 'Ex: Adicione uma condição que pergunta se o cliente quer suporte ou vendas...'
+                    : 'Ex: Fluxo de boas-vindas que pergunta o nome, oferece menu com suporte e vendas, e ao final transfere para humano se escolher suporte...'
+                }
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500 disabled:opacity-50 transition-colors resize-none"
+              />
+
+              {nodes.length > 0 && (
+                <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2.5">
+                  <span className="text-amber-400 text-xs flex-shrink-0 mt-0.5">⚠</span>
+                  <p className="text-amber-300 text-xs">
+                    O fluxo atual ({nodes.length} nós) será substituído pelo gerado pela IA.
+                  </p>
+                </div>
+              )}
+
+              {iaErro && (
+                <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
+                  <XCircle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-red-300 text-xs">{iaErro}</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <p className="text-zinc-600 text-xs leading-tight">
+                  Modelo gratuito via OpenRouter<br />
+                  <span className="text-zinc-700">Ctrl+Enter para gerar</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => !iaGerando && setIaAberta(false)}
+                    disabled={iaGerando}
+                    className="text-sm text-zinc-400 hover:text-white transition-colors px-4 py-2 rounded-lg hover:bg-zinc-800 disabled:opacity-40"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={gerarComIA}
+                    disabled={iaGerando || !iaDescricao.trim()}
+                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-colors"
+                  >
+                    {iaGerando
+                      ? <><Loader2 size={14} className="animate-spin" /> Gerando...</>
+                      : <><Wand2 size={14} /> Gerar fluxo</>
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ---- Modal de ajuda ---- */}

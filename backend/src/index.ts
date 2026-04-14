@@ -6,6 +6,7 @@ import { instanciasRouter } from './routes/instancias'
 import { campanhsRouter } from './routes/campanhas'
 import { chatbotRouter } from './routes/chatbot'
 import { conversasRouter } from './routes/conversas'
+import { iaRouter } from './routes/ia'
 import { authMiddleware } from './middleware/auth'
 import { reconectarTodasInstancias } from './whatsapp/manager'
 
@@ -29,6 +30,7 @@ app.use('/api/instancias', instanciasRouter)
 app.use('/api/campanhas', campanhsRouter)
 app.use('/api/chatbot', chatbotRouter)
 app.use('/api/conversas', conversasRouter)
+app.use('/api/ia', iaRouter)
 
 app.listen(PORT, () => {
   console.log(`Zapvio Backend rodando na porta ${PORT}`)
