@@ -1,16 +1,15 @@
 import { ImageResponse } from 'next/og'
 
-export const size = { width: 32, height: 32 }
-export const contentType = 'image/png'
+export const runtime = 'edge'
 
-export default function Icon() {
+export function GET() {
   return new ImageResponse(
     (
       <div
         style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
+          width: 192,
+          height: 192,
+          borderRadius: 40,
           background: '#25D366',
           display: 'flex',
           alignItems: 'center',
@@ -18,12 +17,12 @@ export default function Icon() {
         }}
       >
         <svg
-          width="20"
-          height="20"
+          width="112"
+          height="112"
           viewBox="0 0 24 24"
           fill="none"
           stroke="white"
-          stroke-width="2"
+          stroke-width="1.5"
           stroke-linecap="round"
           stroke-linejoin="round"
         >
@@ -36,6 +35,6 @@ export default function Icon() {
         </svg>
       </div>
     ),
-    { ...size },
+    { width: 192, height: 192 },
   )
 }
