@@ -29,6 +29,53 @@ RULES:
 8. Write messages in Brazilian Portuguese unless instructed otherwise
 9. RESPOND WITH ONLY THE JSON OBJECT — NO MARKDOWN`
 
+// Modelos gratuitos tentados em ordem
+function getModelos(): string[] {
+  const principal = process.env.OPENROUTER_MODEL
+  const fallbacks = [
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'deepseek/deepseek-chat-v3-0324:free',
+    'qwen/qwen-2.5-72b-instruct:free',
+  ]
+  if (principal) {
+    return [principal, ...fallbacks.filter(m => m !== principal)]
+  }
+  return fallbacks
+}
+
+async function chamarOpenRouter(
+  apiKey: string,
+  model: string,
+  messages: { role: string; content: string }[]
+): Promise<{ ok: true; content: string } | { ok: false; status: number; error: string }> {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:3000',
+      'X-Title': 'Zapflow Flow Builder',
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.2,
+      max_tokens: 4096,
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({})) as any
+    const msg = err?.error?.message || err?.message || `HTTP ${response.status}`
+    console.error(`[ia] Modelo ${model} falhou (${response.status}):`, msg)
+    return { ok: false, status: response.status, error: msg }
+  }
+
+  const data = await response.json() as any
+  const content: string = data.choices?.[0]?.message?.content || ''
+  return { ok: true, content }
+}
+
 iaRouter.post('/gerar-fluxo', async (req, res) => {
   const { descricao, fluxoAtual } = req.body as {
     descricao: string
@@ -44,63 +91,64 @@ iaRouter.post('/gerar-fluxo', async (req, res) => {
     return res.status(500).json({ error: 'OPENROUTER_API_KEY não configurada no backend' })
   }
 
-  const userMessage = fluxoAtual?.nodes?.length
-    ? `Modifique o fluxo abaixo conforme a instrução.\n\nFluxo atual:\n${JSON.stringify(fluxoAtual)}\n\nInstrução: ${descricao}`
-    : `Crie um fluxo de automação de WhatsApp para: ${descricao}`
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: fluxoAtual?.nodes?.length
+        ? `Modifique o fluxo abaixo conforme a instrução.\n\nFluxo atual:\n${JSON.stringify(fluxoAtual)}\n\nInstrução: ${descricao}`
+        : `Crie um fluxo de automação de WhatsApp para: ${descricao}`,
+    },
+  ]
 
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:3000',
-        'X-Title': 'Zapvio Flow Builder',
-      },
-      body: JSON.stringify({
-        // Alternativas gratuitas: deepseek/deepseek-chat-v3-0324:free, qwen/qwen-2.5-72b-instruct:free
-        model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userMessage },
-        ],
-        temperature: 0.2,
-        max_tokens: 4096,
-      }),
-    })
+  const modelos = getModelos()
+  let lastError = ''
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      console.error('[ia] OpenRouter error:', err)
-      const msg = (err as any)?.error?.message || `HTTP ${response.status}`
-      return res.status(502).json({ error: `OpenRouter: ${msg}` })
+  for (const modelo of modelos) {
+    console.log(`[ia] Tentando modelo: ${modelo}`)
+
+    let result: Awaited<ReturnType<typeof chamarOpenRouter>>
+    try {
+      result = await chamarOpenRouter(apiKey, modelo, messages)
+    } catch (err: any) {
+      console.error(`[ia] Erro de rede para ${modelo}:`, err.message)
+      lastError = err.message
+      continue
     }
 
-    const data = await response.json() as any
-    const content: string = data.choices?.[0]?.message?.content || ''
+    if (!result.ok) {
+      lastError = result.error
+      continue // tenta próximo modelo
+    }
 
-    // Extrai o JSON mesmo que o modelo envolva em markdown
+    const content = result.content
+
+    // Extrai JSON mesmo que o modelo envolva em markdown
     const jsonMatch = content.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      console.error('[ia] Sem JSON na resposta:', content.slice(0, 300))
-      return res.status(500).json({ error: 'Modelo não retornou JSON válido. Tente novamente.' })
+      console.error(`[ia] ${modelo} não retornou JSON:`, content.slice(0, 200))
+      lastError = 'Resposta sem JSON válido'
+      continue
     }
 
     let fluxo: any
     try {
       fluxo = JSON.parse(jsonMatch[0])
     } catch {
-      console.error('[ia] JSON inválido:', jsonMatch[0].slice(0, 300))
-      return res.status(500).json({ error: 'Resposta do modelo não é JSON válido. Tente novamente.' })
+      lastError = 'JSON malformado na resposta'
+      continue
     }
 
     if (!Array.isArray(fluxo.nodes) || !Array.isArray(fluxo.edges)) {
-      return res.status(500).json({ error: 'Estrutura de fluxo inválida retornada pelo modelo.' })
+      lastError = 'Estrutura de fluxo inválida'
+      continue
     }
 
-    return res.json({ nodes: fluxo.nodes, edges: fluxo.edges })
-  } catch (err: any) {
-    console.error('[ia] Erro:', err)
-    return res.status(500).json({ error: err.message || 'Erro interno' })
+    console.log(`[ia] Sucesso com modelo: ${modelo}`)
+    return res.json({ nodes: fluxo.nodes, edges: fluxo.edges, modelo })
   }
+
+  return res.status(502).json({
+    error: `Todos os modelos falharam. Último erro: ${lastError}`,
+  })
 })
