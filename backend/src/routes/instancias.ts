@@ -2,8 +2,10 @@ import { Router } from 'express'
 import {
   conectarInstancia,
   desconectarInstancia,
-  getQRCode
+  getQRCode,
+  getSocket,
 } from '../whatsapp/manager'
+import { atualizarFotoContato } from '../services/contatos'
 
 export const instanciasRouter = Router()
 
@@ -42,4 +44,19 @@ instanciasRouter.post('/:id/desconectar', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
+})
+
+// Atualizar foto de perfil de um contato via WhatsApp
+instanciasRouter.post('/:id/foto-contato', async (req, res) => {
+  const { id } = req.params
+  const { numero } = req.body
+  const userId = (req as any).userId
+
+  if (!numero) return res.status(400).json({ error: 'numero é obrigatório' })
+
+  const sock = getSocket(id)
+  if (!sock) return res.status(404).json({ error: 'Instância não conectada' })
+
+  const foto_url = await atualizarFotoContato(userId, numero, sock)
+  res.json({ foto_url })
 })

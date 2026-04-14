@@ -31,9 +31,11 @@ export interface Contato {
   instancia_id?: string
   nome?: string
   numero: string
+  foto_url?: string
   tags?: string[]
   variaveis?: Record<string, string>
   created_at: string
+  updated_at?: string
 }
 
 export interface Campanha {

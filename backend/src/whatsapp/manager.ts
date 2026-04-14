@@ -14,6 +14,7 @@ import path from 'path'
 import fs from 'fs'
 import { processarMensagemChatbot } from '../services/chatbot'
 import { processarMensagemFluxo } from '../services/fluxos'
+import { upsertContato } from '../services/contatos'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -121,6 +122,9 @@ export async function conectarInstancia(instanciaId: string, userId: string) {
       if (!texto || !numero) continue
 
       console.log(`[msg] ${instanciaId} ← ${numero}: "${texto}"`)
+
+      // 0. Salva/atualiza contato automaticamente (não bloqueia o fluxo)
+      upsertContato(instanciaId, userId, numero, msg.pushName, sock).catch(() => {})
 
       // 1. Tenta processar por fluxo ativo
       const fluxoProcessou = await processarMensagemFluxo(instanciaId, numero, texto, sock)
