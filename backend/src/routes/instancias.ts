@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import {
   conectarInstancia,
+  conectarComPairingCode,
   desconectarInstancia,
   getQRCode,
+  getPairingCode,
   getSocket,
 } from '../whatsapp/manager'
 import { atualizarFotoContato } from '../services/contatos'
@@ -32,6 +34,34 @@ instanciasRouter.get('/:id/qrcode', (req, res) => {
   }
 
   res.json({ qrcode: qr })
+})
+
+// Iniciar conexão via pairing code (telefone)
+instanciasRouter.post('/:id/pairing-code', async (req, res) => {
+  const { id } = req.params
+  const { telefone } = req.body
+  const userId = (req as any).userId
+
+  if (!telefone) return res.status(400).json({ error: 'telefone é obrigatório' })
+
+  try {
+    const result = await conectarComPairingCode(id, userId, telefone)
+    res.json(result)
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Buscar pairing code gerado
+instanciasRouter.get('/:id/pairing-code', (req, res) => {
+  const { id } = req.params
+  const code = getPairingCode(id)
+
+  if (!code) {
+    return res.status(404).json({ error: 'Código não disponível ainda.' })
+  }
+
+  res.json({ code })
 })
 
 // Desconectar instância

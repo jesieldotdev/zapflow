@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, Wifi, WifiOff, QrCode, Loader2, Trash2, RefreshCw, PowerOff, MoreVertical } from 'lucide-react'
+import { Plus, Wifi, WifiOff, QrCode, Loader2, Trash2, RefreshCw, PowerOff, MoreVertical, Smartphone } from 'lucide-react'
 import type { Instancia } from '@/types'
 
 export default function InstanciasPage() {
@@ -11,6 +11,12 @@ export default function InstanciasPage() {
   const [novoNome, setNovoNome] = useState('')
   const [criando, setCriando] = useState(false)
   const [qrModal, setQrModal] = useState<{ instanciaId: string; qr: string | null } | null>(null)
+  const [pairingModal, setPairingModal] = useState<{
+    instanciaId: string
+    step: 'input' | 'code'
+    telefone: string
+    code: string | null
+  } | null>(null)
   const [conectando, setConectando] = useState<string | null>(null)
   const [desconectando, setDesconectando] = useState<string | null>(null)
   const [deletando, setDeletando] = useState<string | null>(null)
@@ -105,13 +111,54 @@ export default function InstanciasPage() {
           setQrModal({ instanciaId, qr: qrcode })
           setConectando(null)
           clearInterval(poll)
-          monitorarConexao(instanciaId)
+          monitorarConexao(instanciaId, () => setQrModal(null))
         }
       }
     }, 2000)
   }
 
-  function monitorarConexao(instanciaId: string) {
+  async function iniciarPairingCode(instanciaId: string, telefone: string) {
+    const numero = telefone.replace(/\D/g, '')
+    if (!numero) return
+
+    setConectando(instanciaId)
+    setPairingModal({ instanciaId, step: 'code', telefone: numero, code: null })
+
+    await fetch(`/api/instancias/${instanciaId}/pairing-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telefone: numero }),
+    })
+
+    let tentativas = 0
+    const poll = setInterval(async () => {
+      tentativas++
+      if (tentativas > 15) {
+        clearInterval(poll)
+        setConectando(null)
+        return
+      }
+      const res = await fetch(`/api/instancias/${instanciaId}/pairing-code`)
+      if (res.ok) {
+        const { code } = await res.json()
+        if (code) {
+          setPairingModal(prev => prev ? { ...prev, code } : prev)
+          setConectando(null)
+          clearInterval(poll)
+          monitorarConexao(instanciaId, () => setPairingModal(null))
+        }
+      }
+    }, 2000)
+  }
+
+  function monitorarConexao(instanciaId: string, onConectado?: () => void) {
+    const fechar = () => {
+      onConectado?.()
+      carregar()
+      supabase.removeChannel(channel)
+      clearInterval(pollStatus)
+    }
+
     const channel = supabase
       .channel(`instancia-${instanciaId}`)
       .on('postgres_changes', {
@@ -120,12 +167,7 @@ export default function InstanciasPage() {
         table: 'instancias',
         filter: `id=eq.${instanciaId}`
       }, (payload) => {
-        if (payload.new.status === 'conectado') {
-          setQrModal(null)
-          carregar()
-          supabase.removeChannel(channel)
-          clearInterval(pollStatus)
-        }
+        if (payload.new.status === 'conectado') fechar()
       })
       .subscribe()
 
@@ -136,12 +178,7 @@ export default function InstanciasPage() {
         .eq('id', instanciaId)
         .single()
 
-      if (data?.status === 'conectado') {
-        setQrModal(null)
-        carregar()
-        supabase.removeChannel(channel)
-        clearInterval(pollStatus)
-      }
+      if (data?.status === 'conectado') fechar()
     }, 3000)
 
     setTimeout(() => {
@@ -225,18 +262,29 @@ export default function InstanciasPage() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {inst.status !== 'conectado' && (
-                      <button
-                        onClick={() => iniciarConexao(inst.id)}
-                        disabled={conectando === inst.id}
-                        className="flex items-center gap-1.5 border border-green-500/30 text-green-400 hover:bg-green-500/10 px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
-                      >
-                        {conectando === inst.id
-                          ? <Loader2 size={14} className="animate-spin" />
-                          : <QrCode size={14} />
-                        }
-                        <span className="hidden sm:inline">Conectar via QR</span>
-                        <span className="sm:hidden">Conectar</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => iniciarConexao(inst.id)}
+                          disabled={conectando === inst.id}
+                          className="flex items-center gap-1.5 border border-green-500/30 text-green-400 hover:bg-green-500/10 px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                          title="Conectar via QR Code"
+                        >
+                          {conectando === inst.id
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : <QrCode size={14} />
+                          }
+                          <span className="hidden sm:inline">QR Code</span>
+                        </button>
+                        <button
+                          onClick={() => setPairingModal({ instanciaId: inst.id, step: 'input', telefone: '', code: null })}
+                          disabled={conectando === inst.id}
+                          className="flex items-center gap-1.5 border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                          title="Conectar via número de telefone"
+                        >
+                          <Smartphone size={14} />
+                          <span className="hidden sm:inline">Telefone</span>
+                        </button>
+                      </div>
                     )}
 
                     {/* Menu de ações */}
@@ -282,6 +330,80 @@ export default function InstanciasPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal Pairing Code (número de telefone) */}
+      {pairingModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => !conectando && setPairingModal(null)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 md:p-8 text-center max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Smartphone size={20} className="text-blue-400" />
+              <h2 className="font-bold text-lg">Conectar via Telefone</h2>
+            </div>
+
+            {pairingModal.step === 'input' ? (
+              <>
+                <p className="text-zinc-400 text-sm mb-5">
+                  Digite o número do WhatsApp que deseja conectar, com código do país.
+                </p>
+                <input
+                  type="tel"
+                  value={pairingModal.telefone}
+                  onChange={e => setPairingModal(prev => prev ? { ...prev, telefone: e.target.value } : prev)}
+                  onKeyDown={e => e.key === 'Enter' && iniciarPairingCode(pairingModal.instanciaId, pairingModal.telefone)}
+                  placeholder="5511999999999"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white text-center text-lg tracking-widest placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 transition-colors mb-4"
+                  autoFocus
+                />
+                <p className="text-zinc-500 text-xs mb-5">
+                  Sem espaços ou hífens. Ex: <span className="text-zinc-300">5511999999999</span>
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setPairingModal(null)}
+                    className="flex-1 py-2.5 rounded-xl text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => iniciarPairingCode(pairingModal.instanciaId, pairingModal.telefone)}
+                    disabled={!pairingModal.telefone.replace(/\D/g, '')}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors"
+                  >
+                    Gerar código
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-zinc-400 text-sm mb-6">
+                  No WhatsApp, vá em <span className="text-white font-medium">Configurações → Aparelhos conectados → Conectar com número de telefone</span> e digite o código abaixo.
+                </p>
+                {pairingModal.code ? (
+                  <div className="bg-zinc-800 border border-blue-500/30 rounded-2xl px-6 py-5 mb-4">
+                    <p className="text-3xl font-mono font-bold tracking-[0.3em] text-blue-400">
+                      {pairingModal.code.slice(0, 4)}-{pairingModal.code.slice(4)}
+                    </p>
+                    <p className="text-zinc-500 text-xs mt-2">O código expira em alguns minutos</p>
+                  </div>
+                ) : (
+                  <div className="bg-zinc-800 rounded-2xl px-6 py-8 mb-4 flex items-center justify-center">
+                    <Loader2 className="animate-spin text-zinc-500" size={28} />
+                  </div>
+                )}
+                <p className="text-zinc-500 text-xs mb-5">
+                  Número: <span className="text-zinc-300">+{pairingModal.telefone}</span>
+                </p>
+                <button
+                  onClick={() => setPairingModal(null)}
+                  className="text-sm text-zinc-400 hover:text-white transition-colors"
+                >
+                  Fechar
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 

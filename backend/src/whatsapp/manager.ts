@@ -25,6 +25,8 @@ const supabase = createClient(
 const instanciasAtivas = new Map<string, WASocket>()
 // Map de QR Codes gerados: instanciaId → base64
 const qrCodes = new Map<string, string>()
+// Map de Pairing Codes gerados: instanciaId → código 8 dígitos
+const pairingCodes = new Map<string, string>()
 
 function getSessaoPath(instanciaId: string) {
   const dir = path.join(process.cwd(), 'sessoes', instanciaId)
@@ -139,6 +141,99 @@ export async function conectarInstancia(instanciaId: string, userId: string) {
   return { ok: true }
 }
 
+export async function conectarComPairingCode(instanciaId: string, userId: string, telefone: string) {
+  if (instanciasAtivas.has(instanciaId)) {
+    return { ok: true, message: 'Já conectado' }
+  }
+
+  await atualizarStatus(instanciaId, 'conectando')
+
+  const sessaoPath = getSessaoPath(instanciaId)
+  const { state, saveCreds } = await useMultiFileAuthState(sessaoPath)
+  const { version } = await fetchLatestBaileysVersion()
+
+  const sock = makeWASocket({
+    version,
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, console as any)
+    },
+    printQRInTerminal: false,
+    browser: ['Zapvio', 'Chrome', '124.0.0'],
+    syncFullHistory: false,
+  })
+
+  instanciasAtivas.set(instanciaId, sock)
+  sock.ev.on('creds.update', saveCreds)
+
+  // Solicita pairing code se ainda não registrado
+  if (!sock.authState.creds.registered) {
+    const numero = telefone.replace(/\D/g, '')
+    try {
+      const code = await sock.requestPairingCode(numero)
+      pairingCodes.set(instanciaId, code)
+      console.log(`[${instanciaId}] Pairing code gerado: ${code}`)
+    } catch (err: any) {
+      console.error(`[${instanciaId}] Erro ao solicitar pairing code:`, err.message)
+    }
+  }
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect } = update
+
+    if (connection === 'close') {
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode
+      const deveReconectar = statusCode !== DisconnectReason.loggedOut
+
+      instanciasAtivas.delete(instanciaId)
+      pairingCodes.delete(instanciaId)
+
+      if (deveReconectar) {
+        await atualizarStatus(instanciaId, 'desconectado')
+        setTimeout(() => conectarInstancia(instanciaId, userId), 3000)
+      } else {
+        await atualizarStatus(instanciaId, 'desconectado')
+        fs.rmSync(sessaoPath, { recursive: true, force: true })
+      }
+    }
+
+    if (connection === 'open') {
+      pairingCodes.delete(instanciaId)
+      const numero = sock.user?.id?.split(':')[0] || ''
+      await atualizarStatus(instanciaId, 'conectado', numero)
+      console.log(`[${instanciaId}] Conectado via pairing code: ${numero}`)
+    }
+  })
+
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type !== 'notify') return
+    for (const msg of messages) {
+      if (msg.key.fromMe) continue
+      if (!msg.message) continue
+      if (msg.key.remoteJid?.endsWith('@g.us')) continue
+
+      const numero = msg.key.remoteJid?.replace('@s.whatsapp.net', '') || ''
+      const texto =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        msg.message.videoMessage?.caption ||
+        msg.message.buttonsResponseMessage?.selectedDisplayText ||
+        msg.message.listResponseMessage?.title || ''
+
+      if (!texto || !numero) continue
+
+      upsertContato(instanciaId, userId, numero, msg.pushName, sock).catch(() => {})
+      const fluxoProcessou = await processarMensagemFluxo(instanciaId, numero, texto, sock)
+      if (!fluxoProcessou) {
+        await processarMensagemChatbot(instanciaId, numero, texto, sock)
+      }
+    }
+  })
+
+  return { ok: true }
+}
+
 export async function desconectarInstancia(instanciaId: string) {
   const sock = instanciasAtivas.get(instanciaId)
   if (sock) {
@@ -146,11 +241,16 @@ export async function desconectarInstancia(instanciaId: string) {
     instanciasAtivas.delete(instanciaId)
   }
   qrCodes.delete(instanciaId)
+  pairingCodes.delete(instanciaId)
   await atualizarStatus(instanciaId, 'desconectado')
 }
 
 export function getQRCode(instanciaId: string) {
   return qrCodes.get(instanciaId) || null
+}
+
+export function getPairingCode(instanciaId: string) {
+  return pairingCodes.get(instanciaId) || null
 }
 
 export function getSocket(instanciaId: string) {
